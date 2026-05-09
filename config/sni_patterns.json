@@ -1,0 +1,49 @@
+{
+  "_description": "SNI patterns that pin the DEVICE-MANUFACTURER or OS, NOT generic web traffic. A user opening google.com or office.com tells us nothing about what device they're on, so those patterns are deliberately excluded. Only patterns where the SNI is reached by the device's OS itself (update servers, push notification endpoints, system NTP) are kept. Match is substring, lower-cased, first match wins.",
+  "_excluded_examples": [
+    "icloud.com / apple.com (web)        - any device's browser hits these",
+    "office.com / office365.com          - any device can use Microsoft cloud apps",
+    "google.com / youtube.com / *apis.*  - generic browsing on any OS",
+    "microsoft.com / outlook.com / live  - any device's browser",
+    "brother.com / canon.com / hp.com    - vendor websites; users browse them, printers don't"
+  ],
+  "patterns": [
+    { "match": "swdownload.apple.com",        "vendor": "Apple",     "os": "macOS/iOS",   "device_type": "" },
+    { "match": "softwareupdate.apple.com",    "vendor": "Apple",     "os": "macOS",       "device_type": "laptop" },
+    { "match": "mesu.apple.com",              "vendor": "Apple",     "os": "macOS/iOS",   "device_type": "" },
+    { "match": "gs-loc.apple.com",            "vendor": "Apple",     "os": "iOS",         "device_type": "phone" },
+    { "match": "gateway.icloud.com",          "vendor": "Apple",     "os": "macOS/iOS",   "device_type": "" },
+    { "match": "init.itunes.apple.com",       "vendor": "Apple",     "os": "macOS/iOS",   "device_type": "" },
+    { "match": ".push.apple.com",             "vendor": "Apple",     "os": "macOS/iOS",   "device_type": "" },
+    { "match": "captive.apple.com",           "vendor": "Apple",     "os": "macOS/iOS",   "device_type": "" },
+    { "match": "configuration.apple.com",     "vendor": "Apple",     "os": "macOS/iOS",   "device_type": "" },
+
+    { "match": "windowsupdate.com",           "vendor": "",          "os": "Windows",     "device_type": "" },
+    { "match": "ctldl.windowsupdate.com",     "vendor": "",          "os": "Windows",     "device_type": "" },
+    { "match": "update.microsoft.com",        "vendor": "",          "os": "Windows",     "device_type": "" },
+    { "match": "time.windows.com",            "vendor": "",          "os": "Windows",     "device_type": "" },
+    { "match": "telemetry.microsoft.com",     "vendor": "",          "os": "Windows",     "device_type": "" },
+    { "match": "settings-win.data.microsoft.com", "vendor": "",      "os": "Windows",     "device_type": "" },
+    { "match": "v10.events.data.microsoft.com",   "vendor": "",      "os": "Windows",     "device_type": "" },
+
+    { "match": "mtalk.google.com",            "vendor": "",          "os": "Android",     "device_type": "phone" },
+    { "match": "android.googleapis.com",      "vendor": "",          "os": "Android",     "device_type": "phone" },
+    { "match": "android.clients.google.com",  "vendor": "",          "os": "Android",     "device_type": "phone" },
+    { "match": "play.googleapis.com",         "vendor": "",          "os": "Android",     "device_type": "phone" },
+    { "match": "connectivitycheck.gstatic.com","vendor": "",         "os": "Android",     "device_type": "phone" },
+
+    { "match": "archive.ubuntu.com",          "vendor": "",          "os": "Linux",       "device_type": "" },
+    { "match": "security.ubuntu.com",         "vendor": "",          "os": "Linux",       "device_type": "" },
+    { "match": "esm.ubuntu.com",              "vendor": "",          "os": "Linux",       "device_type": "" },
+    { "match": "snapcraft.io",                "vendor": "",          "os": "Linux",       "device_type": "" },
+    { "match": "deb.debian.org",              "vendor": "",          "os": "Linux",       "device_type": "" },
+    { "match": "security.debian.org",         "vendor": "",          "os": "Linux",       "device_type": "" },
+
+    { "match": "tools.l.google.com",          "vendor": "",          "os": "ChromeOS",    "device_type": "laptop" },
+    { "match": "chromeos.googleapis.com",     "vendor": "",          "os": "ChromeOS",    "device_type": "laptop" },
+
+    { "match": "n0.meraki.com",               "vendor": "Cisco-Meraki", "os": "",         "device_type": "router" },
+    { "match": "meraki.com",                  "vendor": "Cisco-Meraki", "os": "",         "device_type": "" },
+    { "match": "device-info.ui.com",          "vendor": "Ubiquiti",  "os": "",            "device_type": "" }
+  ]
+}

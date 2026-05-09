@@ -1,0 +1,10 @@
+{
+  "_description": "Layer 4 operator-curated immediate-override list. Domains here are NEVER flagged by Sentrix's threat-intel layer, regardless of feed listing. Survives feed re-syncs.",
+  "_layered_defense_context": "One of FOUR allowlist layers: (L1) Tranco top-100K static; (L2) multi-feed K-of-N consensus (planned); (L3) per-deployment self-learned via domain_observations -> learned_allowlist; (L4) THIS FILE.",
+  "known_legitimate_domains": [],
+  "_promotion_thresholds_for_L3": {
+    "min_distinct_hosts": 3,
+    "min_days_seen": 3,
+    "min_total_queries": 10
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "_description": "Family \u2192 MITRE ATT&CK Enterprise tactic mapping. Display-layer only; does NOT affect Stage 2 model output. Each family is assigned its dominant tactic. Some families have secondary tactics (e.g., WannaCry = Impact + Lateral Movement); the secondary list is for reference and tooltip use only.",
+  "_source": "Admin-editable. Edit this file (no restart required for dashboard JS reload \u2014 backend caches for 60 s).",
+  "_reference": "https://attack.mitre.org/tactics/enterprise/",
+  "family_to_tactic": {
+    "BitCoinMiner": "Impact",
+    "Coinminer": "Impact",
+    "Coinminer-v2": "Impact",
+    "WannaCry": "Impact",
+    "BruteForce": "Credential Access",
+    "Recon": "Reconnaissance",
+    "malware_distribution": "Initial Access",
+    "SME11-Windows7-Full": "Initial Access",
+    "SME11-Windows7-AD": "Lateral Movement",
+    "Hajime": "Command and Control",
+    "Hakai": "Command and Control",
+    "Mirai": "Command and Control",
+    "Muhstik": "Command and Control",
+    "Neris": "Command and Control",
+    "Okiru": "Command and Control",
+    "Regin.B": "Command and Control",
+    "blacklist": "Command and Control",
+    "SME11-RaspberryPi-Gen3": "Command and Control",
+    "Other": "Unclassified"
+  },
+  "_secondary_tactics": {
+    "WannaCry": [
+      "Lateral Movement"
+    ],
+    "Mirai": [
+      "Initial Access",
+      "Discovery"
+    ],
+    "Hajime": [
+      "Initial Access"
+    ],
+    "SME11-Windows7-AD": [
+      "Credential Access"
+    ],
+    "SME11-Windows7-Full": [
+      "Execution",
+      "Persistence"
+    ]
+  },
+  "tactic_meta": {
+    "Reconnaissance": {
+      "id": "TA0043",
+      "color": "#7dd3fc",
+      "order": 1
+    },
+    "Resource Development": {
+      "id": "TA0042",
+      "color": "#94a3b8",
+      "order": 2
+    },
+    "Initial Access": {
+      "id": "TA0001",
+      "color": "#a78bfa",
+      "order": 3
+    },
+    "Execution": {
+      "id": "TA0002",
+      "color": "#94a3b8",
+      "order": 4
+    },
+    "Persistence": {
+      "id": "TA0003",
+      "color": "#94a3b8",
+      "order": 5
+    },
+    "Privilege Escalation": {
+      "id": "TA0004",
+      "color": "#94a3b8",
+      "order": 6
+    },
+    "Defense Evasion": {
+      "id": "TA0005",
+      "color": "#94a3b8",
+      "order": 7
+    },
+    "Credential Access": {
+      "id": "TA0006",
+      "color": "#facc15",
+      "order": 8
+    },
+    "Discovery": {
+      "id": "TA0007",
+      "color": "#94a3b8",
+      "order": 9
+    },
+    "Lateral Movement": {
+      "id": "TA0008",
+      "color": "#f97316",
+      "order": 10
+    },
+    "Collection": {
+      "id": "TA0009",
+      "color": "#94a3b8",
+      "order": 11
+    },
+    "Command and Control": {
+      "id": "TA0011",
+      "color": "#ef4444",
+      "order": 12
+    },
+    "Exfiltration": {
+      "id": "TA0010",
+      "color": "#94a3b8",
+      "order": 13
+    },
+    "Impact": {
+      "id": "TA0040",
+      "color": "#b479ee",
+      "order": 14
+    },
+    "Unclassified": {
+      "id": "\u2014",
+      "color": "#4b5563",
+      "order": 99
+    }
+  },
+  "_covered_by_model": [
+    "Reconnaissance",
+    "Credential Access",
+    "Initial Access",
+    "Lateral Movement",
+    "Command and Control",
+    "Impact"
+  ],
+  "_uncovered_tactics": [
+    "Resource Development",
+    "Execution",
+    "Persistence",
+    "Privilege Escalation",
+    "Defense Evasion",
+    "Discovery",
+    "Collection",
+    "Exfiltration"
+  ],
+  "_design_note_2026_04_27": "BENIGN entries from confidence_engine.py are intentionally OMITTED from MITRE mapping. MITRE ATT&CK is a taxonomy of adversary tactics; benign verdicts are not tactics. Benign-classified alerts are still visible in the Severity Distribution doughnut as a separate slice (severity != tactic) and in the alerts table for auditability, but they are excluded from threat-distribution and tactic-coverage charts."
+}

@@ -1,0 +1,24 @@
+# Sentrix Python dependencies
+# Install: pip install -r requirements.txt
+#
+# Native (non-pip) dependencies live on the host and pipe logs into
+# Sentrix via volume mounts, see docs/INSTALL.md:
+#   - Zeek      Layer 0 protocol parser, emits conn.log + protocol logs
+#   - Suricata  Layer 0 signature engine, emits eve.json
+#   - libgomp1  OpenMP runtime for LightGBM and XGBoost ONNX inference
+
+# Core ML inference
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+lightgbm>=4.0.0
+joblib>=1.3.0
+onnxruntime>=1.15.0
+
+# Web server (dashboard + ML API)
+fastapi>=0.100.0
+uvicorn>=0.23.0
+requests>=2.31.0
+
+# Config support
+PyYAML>=6.0

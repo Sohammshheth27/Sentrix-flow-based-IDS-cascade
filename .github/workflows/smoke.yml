@@ -1,0 +1,74 @@
+name: Smoke test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Import check (every src module + root + normalizers)
+        run: |
+          python - <<'PYEOF'
+          import sys, importlib
+          sys.path.insert(0, "src")
+          sys.path.insert(0, ".")
+          from pathlib import Path
+          mods = [f"src.{p.stem}" for p in Path("src").glob("*.py") if not p.stem.startswith("_")]
+          mods += ["sentrix_host_aggregator",
+                   "normalizers",
+                   "normalizers.base_ipfix_normalizer",
+                   "normalizers.ctuiot_ipfix_normalizer"]
+          fail = []
+          for m in mods:
+              try:
+                  importlib.import_module(m)
+                  print(f"OK   {m}")
+              except Exception as e:
+                  fail.append((m, e))
+                  print(f"FAIL {m}: {type(e).__name__}: {e}")
+          if fail:
+              raise SystemExit(f"\n{len(fail)} modules failed to import")
+          print(f"\nAll {len(mods)} modules imported.")
+          PYEOF
+
+      - name: ONNX models load
+        run: |
+          python - <<'PYEOF'
+          import onnxruntime as ort
+          from pathlib import Path
+          ok = 0
+          for p in sorted(Path("models").glob("*.onnx")):
+              s = ort.InferenceSession(str(p), providers=["CPUExecutionProvider"])
+              shape = s.get_inputs()[0].shape if s.get_inputs() else None
+              print(f"OK {p.name:50s} input={shape}")
+              ok += 1
+          assert ok > 0, "no ONNX models found in models/"
+          print(f"\n{ok} ONNX models loaded.")
+          PYEOF
+
+      - name: CLI help
+        run: python run.py --help
+
+      - name: Config validation
+        run: python scripts/validate_config.py || [ $? -eq 1 ]

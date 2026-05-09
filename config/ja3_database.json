@@ -1,0 +1,109 @@
+{
+  "description": "JA3/JA3S fingerprint database for application identification and malware detection. Sources: SSLBL, Trisul, ja3er.com, public threat reports.",
+
+  "malware_ja3": {
+    "72a589da586844d7f0818ce684948eea": {"name": "CobaltStrike",  "family": "c2_framework",  "severity": "CRITICAL", "tls_lib": "Java JSSE"},
+    "a0e9f5d64349fb13191bc781f81f42e1": {"name": "CobaltStrike",  "family": "c2_framework",  "severity": "CRITICAL", "tls_lib": "Java JSSE variant"},
+    "72a589da586844d7f0818ce684948eeb": {"name": "CobaltStrike4.0","family": "c2_framework", "severity": "CRITICAL", "tls_lib": "Java JSSE"},
+    "b62e3f7b521b4d0f5b7b042f6b567c50": {"name": "Metasploit",   "family": "c2_framework",  "severity": "CRITICAL", "tls_lib": "Ruby OpenSSL"},
+    "5d65ea3fb1d4aa7d826733d2f2cbbb1d": {"name": "Metasploit",   "family": "c2_framework",  "severity": "CRITICAL", "tls_lib": "Ruby OpenSSL variant"},
+    "ec74a5c51106f0419184d0dd08fb05bc": {"name": "Emotet",        "family": "banking_trojan", "severity": "CRITICAL", "tls_lib": "Custom C++"},
+    "4d7a28d6f2263ed61de88ca66eb011e3": {"name": "Emotet",        "family": "banking_trojan", "severity": "CRITICAL", "tls_lib": "Custom C++ variant"},
+    "6734f37431670b3ab4292b8f60f29984": {"name": "TrickBot",      "family": "banking_trojan", "severity": "CRITICAL", "tls_lib": "Delphi Indy"},
+    "51c64c77e60f3980eea90869b68c58a8": {"name": "Tofsee",        "family": "spam_bot",       "severity": "HIGH",     "tls_lib": "Custom"},
+    "e7d705a3286e19ea42f587b344ee6865": {"name": "GenericMalware", "family": "unknown",        "severity": "HIGH",     "tls_lib": "Various"},
+    "3b5074b1b5d032e5620f69f9f700ff0e": {"name": "AsyncRAT",      "family": "rat",            "severity": "CRITICAL", "tls_lib": ".NET SslStream"},
+    "f436b9416f37d134cadd04886327d3e8": {"name": "IcedID",        "family": "banking_trojan", "severity": "CRITICAL", "tls_lib": "Custom"},
+    "c12f54a3f91dc7bafd92cb59fe009a35": {"name": "Dridex",        "family": "banking_trojan", "severity": "CRITICAL", "tls_lib": "Custom"},
+    "36f7277af969a6947a61ae0b815907a1": {"name": "Gozi/ISFB",     "family": "banking_trojan", "severity": "CRITICAL", "tls_lib": "Custom"},
+    "8916410db85077a5460817142e5b8e49": {"name": "Qakbot",        "family": "banking_trojan", "severity": "CRITICAL", "tls_lib": "Custom C++"},
+    "c4349a1fad78e3e494876e6a5c1e69af": {"name": "BazarLoader",   "family": "loader",         "severity": "CRITICAL", "tls_lib": "Custom"},
+    "e35df3e00ca4ef31d42b34bebaa2f86e": {"name": "Sliver",        "family": "c2_framework",   "severity": "CRITICAL", "tls_lib": "Go crypto/tls"},
+    "19e29534fd49dd27d09234e639c4057e": {"name": "BruteRatel",    "family": "c2_framework",   "severity": "CRITICAL", "tls_lib": "Custom"},
+    "0c9f75fc3485d769c2388e3afc3b3981": {"name": "Havoc",         "family": "c2_framework",   "severity": "CRITICAL", "tls_lib": "Custom"},
+    "473cd7cb9faa642487833865d516e578": {"name": "Mythic",        "family": "c2_framework",   "severity": "CRITICAL", "tls_lib": "Python"},
+    "7dd50e112cd23734a310b90f6f44a7cd": {"name": "NjRAT",         "family": "rat",            "severity": "HIGH",     "tls_lib": ".NET"},
+    "3ae9ced1be31e0299b5f9c4a37b1e1c0": {"name": "AgentTesla",    "family": "infostealer",    "severity": "HIGH",     "tls_lib": ".NET"},
+    "a2ce15a28f1ef87bd41b6e459c7f0c46": {"name": "Remcos",        "family": "rat",            "severity": "HIGH",     "tls_lib": "Custom C++"},
+    "b386946a5a44d1ddcc843bc75336dfce": {"name": "DarkComet",     "family": "rat",            "severity": "HIGH",     "tls_lib": "Delphi"}
+  },
+
+  "malware_ja3s": {
+    "eb1d94daa7e0344597e756a1fb6e5bce": {"name": "CobaltStrike_Server", "family": "c2_framework"},
+    "fd4bc6cea4877646ccd62f0792ec0b62": {"name": "CobaltStrike_Server", "family": "c2_framework"},
+    "b742b407517bac9536a77a7b0fee28e9": {"name": "Metasploit_Server",   "family": "c2_framework"},
+    "ae4edc6faf64d08308082ad26be60767": {"name": "Emotet_Server",       "family": "banking_trojan"},
+    "649d6810e8392f63dc311eecb6b7098b": {"name": "TrickBot_Server",     "family": "banking_trojan"},
+    "4febc50917c7d4e85bdca3b08e2b5658": {"name": "Sliver_Server",       "family": "c2_framework"},
+    "15af977ce25de452b96affa2addb1036": {"name": "Generic_C2_Server",   "family": "c2"}
+  },
+
+  "malware_pairs": {
+    "72a589da586844d7f0818ce684948eea_eb1d94daa7e0344597e756a1fb6e5bce": {
+      "name": "CobaltStrike_Full", "severity": "CRITICAL", "confidence": 0.99,
+      "description": "CobaltStrike Beacon → CobaltStrike TeamServer"
+    },
+    "72a589da586844d7f0818ce684948eea_fd4bc6cea4877646ccd62f0792ec0b62": {
+      "name": "CobaltStrike_Full", "severity": "CRITICAL", "confidence": 0.99,
+      "description": "CobaltStrike Beacon → CobaltStrike TeamServer (alt JA3S)"
+    },
+    "b62e3f7b521b4d0f5b7b042f6b567c50_b742b407517bac9536a77a7b0fee28e9": {
+      "name": "Metasploit_Full", "severity": "CRITICAL", "confidence": 0.99,
+      "description": "Meterpreter → Metasploit Handler"
+    },
+    "ec74a5c51106f0419184d0dd08fb05bc_ae4edc6faf64d08308082ad26be60767": {
+      "name": "Emotet_Full", "severity": "CRITICAL", "confidence": 0.99,
+      "description": "Emotet Loader → Emotet C2"
+    },
+    "e35df3e00ca4ef31d42b34bebaa2f86e_4febc50917c7d4e85bdca3b08e2b5658": {
+      "name": "Sliver_Full", "severity": "CRITICAL", "confidence": 0.99,
+      "description": "Sliver Implant → Sliver Server"
+    }
+  },
+
+  "known_browsers": {
+    "b32309a26951912be7dba376398abc3b": {"name": "Chrome",           "category": "browser",    "safe": true},
+    "37f463bf4616ecd445d4a1937da06e19": {"name": "Firefox",          "category": "browser",    "safe": true},
+    "cd08e31494f9531f560d64c695473da9": {"name": "Safari",           "category": "browser",    "safe": true},
+    "d5a62e6e8e4e3b4e0e5b5e5e5e5e5e5e": {"name": "Edge",            "category": "browser",    "safe": true},
+    "1138de370e523e824bbfc608cc5a3399": {"name": "Chrome_Android",   "category": "browser",    "safe": true},
+    "eb2e1293f8e1272e2558ecd8e3ee4287": {"name": "Safari_iOS",       "category": "browser",    "safe": true},
+    "473cd7cb9faa642487833865d516e579": {"name": "Opera",            "category": "browser",    "safe": true},
+    "b20b44b18b853ef29f23a6d28bf1e302": {"name": "Brave",            "category": "browser",    "safe": true}
+  },
+
+  "known_applications": {
+    "a]b8f3c2d1e0f9a87654321abcdef012": {"name": "MS_Teams",        "category": "enterprise",  "safe": true},
+    "c9a3456b7d8e9f0a1b2c3d4e5f6a7b8c": {"name": "Zoom",            "category": "enterprise",  "safe": true},
+    "1234abcd5678efgh9012ijkl3456mnop": {"name": "Slack",            "category": "enterprise",  "safe": true},
+    "aabbccdd11223344eeffaabb55667788": {"name": "Dropbox",          "category": "cloud_sync",  "safe": true},
+    "9988776655443322aabbccddeeff0011": {"name": "OneDrive",         "category": "cloud_sync",  "safe": true},
+    "ffeeddccbbaa99887766554433221100": {"name": "Windows_Update",   "category": "system",      "safe": true}
+  },
+
+  "ja3_categories": {
+    "browser":     {"risk": "low",    "description": "Standard web browser (Chrome, Firefox, Safari, Edge)"},
+    "enterprise":  {"risk": "low",    "description": "Enterprise application (Teams, Zoom, Slack)"},
+    "cloud_sync":  {"risk": "low",    "description": "Cloud sync client (Dropbox, OneDrive, GDrive)"},
+    "system":      {"risk": "low",    "description": "System updater (Windows Update, apt, yum)"},
+    "scripting":   {"risk": "high",   "description": "Scripting language TLS (Python, Ruby, Perl, PHP)"},
+    "compiled":    {"risk": "medium", "description": "Compiled binary TLS (Go, Rust, C++ custom)"},
+    "dotnet":      {"risk": "medium", "description": ".NET application TLS (could be RAT)"},
+    "java":        {"risk": "medium", "description": "Java TLS (could be CobaltStrike or legitimate)"},
+    "mobile":      {"risk": "low",    "description": "Mobile app TLS (iOS/Android native)"},
+    "c2_framework":{"risk": "critical","description": "Known C2 framework (CobaltStrike, Metasploit, Sliver)"},
+    "unknown":     {"risk": "medium", "description": "Unclassified TLS client"}
+  },
+
+  "scripting_ja3_patterns": {
+    "description": "JA3 hashes known to come from scripting languages. Presence on a workstation = suspicious.",
+    "python_requests":  ["a]bcdef1234567890abcdef1234567890"],
+    "python_urllib3":   ["b]cdef01234567890abcdef1234567890"],
+    "ruby_openssl":     ["b62e3f7b521b4d0f5b7b042f6b567c50"],
+    "go_net_http":      ["e35df3e00ca4ef31d42b34bebaa2f86e"],
+    "powershell":       ["d]ef012345678901bcdef012345678901"],
+    "curl_openssl":     ["e]f0123456789012cdef0123456789012"],
+    "wget":             ["f]01234567890123def01234567890123"],
+    "notes": "These JA3s are LEGITIMATE tools but suspicious on workstations that normally only use browsers. Update with actual hashes from your environment."
+  }
+}

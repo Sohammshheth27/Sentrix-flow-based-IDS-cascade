@@ -1,0 +1,56 @@
+{
+  "description": "Identity registry: maps IPs to users, devices, departments. Add your office hosts here. ISE/AD integration replaces this in enterprise deployments.",
+  "devices": {},
+  "department_sensitivity": {
+    "Infrastructure": {
+      "level": "critical",
+      "data_class": "system",
+      "alert_escalation": true
+    },
+    "Finance": {
+      "level": "high",
+      "data_class": "confidential",
+      "alert_escalation": true
+    },
+    "IT": {
+      "level": "high",
+      "data_class": "internal",
+      "alert_escalation": true
+    },
+    "Sales": {
+      "level": "medium",
+      "data_class": "internal",
+      "alert_escalation": false
+    },
+    "Marketing": {
+      "level": "medium",
+      "data_class": "internal",
+      "alert_escalation": false
+    },
+    "IoT": {
+      "level": "high",
+      "data_class": "operational",
+      "alert_escalation": true
+    },
+    "Guest": {
+      "level": "low",
+      "data_class": "untrusted",
+      "alert_escalation": false
+    },
+    "Unknown": {
+      "level": "high",
+      "data_class": "unknown",
+      "alert_escalation": true
+    }
+  },
+  "subnet_to_department": {
+    "192.168.1.0/24": "Infrastructure",
+    "192.168.10.0/24": "IT",
+    "192.168.20.0/24": "Finance",
+    "192.168.30.0/24": "Marketing",
+    "192.168.40.0/24": "Sales",
+    "192.168.50.0/24": "IoT",
+    "192.168.60.0/24": "Guest"
+  },
+  "notes": "Add devices as they join the network. For AD integration, replace this file with a script that queries Active Directory via LDAP."
+}

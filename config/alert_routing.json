@@ -1,0 +1,58 @@
+{
+  "description": "Alert routing configuration. Edit channels and routing to match your environment.",
+
+  "routing": {
+    "CRITICAL": ["email", "slack", "syslog", "certin"],
+    "HIGH":     ["slack", "syslog", "certin"],
+    "MEDIUM":   ["syslog"],
+    "LOW":      []
+  },
+
+  "channels": {
+    "email": {
+      "enabled": false,
+      "smtp_host": "smtp.office365.com",
+      "smtp_port": 587,
+      "use_tls": true,
+      "username": "ids-alerts@yourcompany.com",
+      "password": "YOUR_APP_PASSWORD",
+      "from": "ids-alerts@yourcompany.com",
+      "to": ["soc-lead@yourcompany.com", "it-security@yourcompany.com"],
+      "notes": "Set enabled=true and fill in SMTP credentials"
+    },
+    "slack": {
+      "enabled": false,
+      "webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
+      "notes": "Create incoming webhook at https://api.slack.com/messaging/webhooks"
+    },
+    "teams": {
+      "enabled": false,
+      "webhook_url": "https://outlook.office.com/webhook/YOUR/WEBHOOK/URL",
+      "notes": "Create incoming webhook in Teams channel connector settings"
+    },
+    "syslog": {
+      "enabled": false,
+      "host": "192.168.1.100",
+      "port": 514,
+      "protocol": "udp",
+      "facility": 4,
+      "notes": "CEF format compatible with Splunk, QRadar, ArcSight, Elastic SIEM"
+    },
+    "webhook": {
+      "enabled": false,
+      "url": "https://your-api.example.com/alerts",
+      "auth_token": "",
+      "headers": {"Content-Type": "application/json"},
+      "notes": "Generic webhook — POSTs full alert JSON"
+    },
+    "certin": {
+      "enabled": false,
+      "org_name": "YOUR_ORGANIZATION",
+      "org_sector": "IT",
+      "contact_email": "ciso@yourcompany.com",
+      "contact_phone": "+91-XXXXXXXXXX",
+      "submit_url": "",
+      "notes": "CERT-In mandatory incident reporting (6-hour rule, Apr 2022). Leave submit_url empty to format-only (reports will be logged but not POSTed). CRITICAL/HIGH alerts are routed here when enabled."
+    }
+  }
+}

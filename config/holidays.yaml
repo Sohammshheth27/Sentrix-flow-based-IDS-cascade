@@ -1,0 +1,29 @@
+# Indian Gazetted Holidays — UEBA suppresses scoring for the first 4 hours
+# after a workday following any date listed here. This prevents false-positive
+# storms when the entire office reconnects simultaneously after a holiday.
+#
+# Format: YYYY-MM-DD. Update annually. Dates below are 2026 central govt
+# gazetted holidays; add regional/company holidays as needed.
+
+suppression_hours_after_holiday: 4
+
+holidays:
+  - "2026-01-26"   # Republic Day
+  - "2026-03-17"   # Holi
+  - "2026-03-31"   # Id-ul-Fitr (Eid)
+  - "2026-04-02"   # Ram Navami
+  - "2026-04-06"   # Mahavir Jayanti
+  - "2026-04-14"   # Dr. Ambedkar Jayanti
+  - "2026-05-01"   # May Day
+  - "2026-05-12"   # Buddha Purnima
+  - "2026-06-07"   # Id-ul-Zuha (Bakrid)
+  - "2026-07-07"   # Muharram
+  - "2026-08-15"   # Independence Day
+  - "2026-08-16"   # Janmashtami
+  - "2026-09-05"   # Milad-un-Nabi
+  - "2026-10-02"   # Mahatma Gandhi Jayanti
+  - "2026-10-21"   # Dussehra
+  - "2026-11-10"   # Diwali
+  - "2026-11-11"   # Diwali (next day)
+  - "2026-11-27"   # Guru Nanak Jayanti
+  - "2026-12-25"   # Christmas

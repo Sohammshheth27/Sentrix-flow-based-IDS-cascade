@@ -1,0 +1,22 @@
+# Internal network definitions for IP classification.
+#
+# The following ranges are ALWAYS treated as internal (no need to list):
+#   - 10.0.0.0/8
+#   - 172.16.0.0/12
+#   - 192.168.0.0/16
+#   - 100.64.0.0/10   (CGNAT, RFC 6598)
+#   - 169.254.0.0/16  (link-local)
+#   - 127.0.0.0/8     (loopback)
+#   - ::1/128, fc00::/7, fe80::/10
+#
+# Add additional office-specific private CIDRs here. Anything not
+# covered by the defaults or this list is treated as EXTERNAL and will
+# NOT be registered as a device, UEBA-baselined, or added to peer groups.
+
+# Extra internal CIDRs (e.g., off-RFC1918 branch office, VPN pools).
+extra_internal: []
+
+# Individual public IPs that belong to the office (e.g., static WAN
+# uplink, on-prem DMZ servers with routable addresses). These are
+# treated as internal despite being public.
+public_office_ips: []

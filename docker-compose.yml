@@ -1,0 +1,18 @@
+# One-command bring-up for the Sentrix dashboard.
+# Usage:
+#   docker compose up        # builds image and starts dashboard at http://localhost:8080
+#   docker compose down      # stops and removes container
+
+services:
+  sentrix:
+    build: .
+    image: sentrix:latest
+    container_name: sentrix
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped

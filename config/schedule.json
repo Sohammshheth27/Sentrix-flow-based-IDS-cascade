@@ -1,0 +1,16 @@
+{
+  "description": "Operational scheduling config. Read by scripts/register_refresh_task.py and (optionally) by detection components that need office-hours awareness.",
+
+  "office_hours": {
+    "start": "09:00",
+    "end": "18:00",
+    "timezone": "local",
+    "notes": "24-hour HH:MM format. 'start' is used as the alignment anchor for the hourly threat-intel refresh task — the task runs every hour, 24/7, but its first scheduled run lands at this time. Edit this value then re-run scripts/register_refresh_task.py to apply."
+  },
+
+  "threat_intel_refresh": {
+    "task_name": "Sentrix\\ThreatIntelRefresh",
+    "interval_hours": 1,
+    "enabled": true
+  }
+}

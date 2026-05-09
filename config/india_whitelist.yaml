@@ -1,0 +1,54 @@
+# Indian Government and SaaS Domains — whitelisted at the policy engine
+# to prevent false positives on legitimate Indian office traffic.
+#
+# These are SNI/domain suffix matches. A flow to "gst.gov.in" matches "*.gov.in".
+
+trusted_domain_suffixes:
+  # Government portals
+  - ".gov.in"
+  - ".nic.in"
+  - ".india.gov.in"
+  # UPI / payments infrastructure
+  - ".npci.org.in"
+  # Indian SaaS platforms
+  - ".zoho.com"
+  - ".zohomail.com"
+  - ".freshdesk.com"
+  - ".freshworks.com"
+  - ".razorpay.com"
+  - ".payu.in"
+  - ".instamojo.com"
+  - ".cleartax.in"
+  - ".tallysolutions.com"
+  - ".tallyedge.com"
+
+# UPI/bank lookalike domains — SNI-matching rule for credential harvesting.
+# These are EXACT domain patterns that mimic legitimate Indian banks.
+# A flow whose SNI matches any of these triggers a HIGH alert.
+# Add new patterns as phishing campaigns evolve.
+bank_lookalike_patterns:
+  # HDFC
+  - "hdfc-secure"
+  - "hdfcbank-login"
+  - "hdfcnet-banking"
+  # ICICI
+  - "icicibank-secure"
+  - "icici-login"
+  - "icicinetbanking"
+  # SBI
+  - "sbi-online"
+  - "sbionline-secure"
+  - "sbibank-login"
+  # Axis
+  - "axisbank-secure"
+  - "axis-netbanking"
+  # Kotak
+  - "kotak-secure"
+  - "kotakbank-login"
+  # Payment apps
+  - "paytm-secure"
+  - "paytm-login"
+  - "phonepe-secure"
+  - "phonepe-login"
+  - "gpay-secure"
+  - "googlepay-login"

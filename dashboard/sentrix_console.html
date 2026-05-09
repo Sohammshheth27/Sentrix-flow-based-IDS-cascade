@@ -1,0 +1,2371 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sentrix SOC Console</title>
+<!-- Tailwind from CDN (CSS-only, no blocking concern at most networks) -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Chart.js + Alpine.js served locally from the sensor so corporate
+     firewalls that block jsdelivr.net don't break the dashboard. -->
+<script src="/static/chart.umd.min.js"></script>
+<script>
+  // Global Chart.js defaults for dark theme — applied BEFORE any chart
+  // is constructed. Without this, default text/grid color is near-black
+  // and invisible on the dark background.
+  if (typeof Chart !== 'undefined') {
+    Chart.defaults.color = '#d4dae5';
+    Chart.defaults.borderColor = 'rgba(140,150,168,0.2)';
+    Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+    Chart.defaults.font.size = 11;
+    Chart.defaults.devicePixelRatio = 1.5;
+    Chart.defaults.animation = false;  // prevents first-frame blank on slow laptops
+  }
+</script>
+<script src="/static/alpine.min.js" defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-0: #0b0e14;
+    --bg-1: #1a1d26;
+    --bg-2: #252b38;
+    --bg-3: #2f3543;
+    --border: #343a47;
+    --text: #d4dae5;
+    --text-muted: #8c96a8;
+    --accent: #00bfb3;
+    --accent-hover: #36d1c5;
+    --blue: #4e8cff;
+    /* Severity palette — deliberately far apart on the color wheel
+       so Critical/High/Medium/Low are distinguishable at a glance.
+       Previously --orange (#f5a700) and --amber (#dba13a) were nearly
+       identical to each other. */
+    --red:    #ef4444;   /* Critical — strong red */
+    --orange: #f97316;   /* High    — pure orange, not amber */
+    --amber:  #facc15;   /* Medium  — bright yellow, clearly distinct from orange */
+    --green:  #22c55e;   /* Low     — green */
+    --purple: #b479ee;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg-0);
+    color: var(--text);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0;
+  }
+  .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  .card {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .card-hover:hover { background: var(--bg-2); }
+  .btn {
+    background: var(--bg-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: 4px 10px; font-size: 12px; cursor: pointer;
+    transition: all 0.12s ease;
+  }
+  .btn:hover { background: var(--bg-3); border-color: var(--accent); }
+  .btn-primary { background: var(--accent); color: #0b0e14; border-color: var(--accent); }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-danger { background: rgba(231,102,76,0.15); color: var(--red); border-color: var(--red); }
+  /* Industrial action buttons used in Live Alerts / Top Offenders rows.
+     Tight padding, uppercase, letter-spaced, monospace-like — reads as a
+     tactical control rather than a friendly icon-decorated label. */
+  .btn-action {
+    text-transform: uppercase; letter-spacing: 0.06em;
+    font-weight: 600; font-size: 10.5px;
+    padding: 3px 9px; border-radius: 2px;
+    font-family: ui-monospace, "SF Mono", Consolas, "Liberation Mono", monospace;
+    min-width: 78px; text-align: center;
+  }
+  .btn-action:hover {
+    background: rgba(0,191,179,0.10); border-color: var(--accent); color: var(--accent);
+  }
+  .btn-deny {
+    border-color: rgba(231,102,76,0.55); color: #f59f8b;
+  }
+  .btn-deny:hover {
+    background: rgba(231,102,76,0.12); border-color: var(--red); color: var(--red);
+  }
+  .input, select {
+    background: var(--bg-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: 5px 10px; font-size: 12px; width: 100%;
+    font-family: inherit;
+  }
+  .input:focus, select:focus { outline: none; border-color: var(--accent); }
+  .sev { padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; display: inline-block; }
+  /* Severity badges — bright-200 text on 15%-opacity solid tint.
+     Standard "pill" pattern: same hue for text + bg, different lightness. */
+  .sev-CRITICAL { color: #fca5a5; background: rgba(239, 68, 68, 0.18); }  /* red-300 on red-500/18 */
+  .sev-HIGH     { color: #fdba74; background: rgba(249,115, 22, 0.18); }  /* orange-300 on orange-500/18 */
+  .sev-MEDIUM   { color: #fde047; background: rgba(234,179,  8, 0.18); }  /* yellow-300 on yellow-500/18 */
+  .sev-LOW      { color: #86efac; background: rgba( 34,197, 94, 0.18); }  /* green-300 on green-500/18 */
+  .sev-BENIGN { color: var(--text-muted); background: rgba(140,150,168,0.1); }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  thead th {
+    background: var(--bg-2); color: var(--text-muted);
+    padding: 8px 10px; text-align: left; font-weight: 500;
+    text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0;
+  }
+  tbody td { padding: 7px 10px; border-bottom: 1px solid var(--bg-2); }
+  tbody tr:hover { background: var(--bg-2); }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg-0); }
+  ::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border); }
+  .sidebar-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; color: var(--text-muted);
+    border-left: 3px solid transparent; cursor: pointer;
+    transition: all 0.12s ease; font-size: 12px;
+  }
+  .sidebar-item:hover { color: var(--text); background: var(--bg-2); }
+  .sidebar-item.active { color: var(--accent); border-left-color: var(--accent); background: var(--bg-2); }
+  .kpi-card {
+    background: var(--bg-1); border: 1px solid var(--border);
+    border-radius: 4px; padding: 18px;
+    transition: all 0.2s ease;
+  }
+  .kpi-card:hover { border-color: var(--accent); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+  .pulse { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .fade-in { animation: fadeIn 0.3s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; z-index: 50;
+    background: var(--bg-2); border: 1px solid var(--border);
+    padding: 12px 16px; border-radius: 4px; font-size: 12px;
+    animation: fadeIn 0.2s ease-out;
+  }
+  [x-cloak] { display: none !important; }
+  /* Ensure Chart.js canvases get real dimensions even if their section
+     is briefly display:none during tab switching. Parent wrappers
+     specify explicit heights; these rules force the canvas to fill. */
+  /* Chart wrappers. Chart.js responsive mode is DISABLED per-chart
+     (options.responsive=false) and we set explicit HTML width/height
+     attributes on each canvas. Tailwind's preflight was zeroing the
+     canvas dimensions. These classes are kept as visual containers
+     with guaranteed heights. */
+  .chart-wrap       { position: relative; display: block; width: 100%; height: 220px; overflow: hidden; }
+  .chart-wrap-sm    { position: relative; display: block; width: 100%; height: 280px; overflow: hidden; }
+  .chart-wrap-lg    { position: relative; display: block; width: 100%; height: 320px; overflow: hidden; }
+  .chart-wrap-xl    { position: relative; display: block; width: 100%; height: 340px; overflow: hidden; }
+  /* Let Chart.js control canvas dimensions directly — don't force
+     via CSS (the !important conflicted with Chart.js's own sizing). */
+  .chart-wrap canvas, .chart-wrap-sm canvas,
+  .chart-wrap-lg canvas, .chart-wrap-xl canvas {
+    display: block;
+  }
+  /* Debug footer (can be removed once charts confirmed working) */
+  #debug-footer {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+    background: rgba(26,29,38,0.95); border-top: 1px solid var(--border);
+    padding: 4px 12px; font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--text-muted);
+    white-space: nowrap; overflow: hidden;
+  }
+  /* Modal */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+    z-index: 40; display: flex; align-items: center; justify-content: center;
+  }
+  .modal {
+    background: var(--bg-1); border: 1px solid var(--border);
+    border-radius: 6px; padding: 20px; width: 420px; max-width: 90vw;
+  }
+</style>
+</head>
+<body x-data="sentrix()" x-init="init()" x-cloak>
+
+<!-- ── Top Nav ─────────────────────────────────────────────── -->
+<header class="bg-[var(--bg-1)] border-b border-[var(--border)] h-14 flex items-center px-5 sticky top-0 z-30">
+  <!-- Brand — plain SENTRIX text. Click returns to Overview. -->
+  <div class="cursor-pointer select-none"
+       @click="view='overview'"
+       title="Sentrix — click to return to Overview">
+    <div class="text-[17px] font-bold tracking-[0.22em]" style="color:var(--accent)">SENTRIX</div>
+  </div>
+
+  <!-- Time range + refresh -->
+  <div class="ml-auto flex gap-3 items-center">
+    <div class="flex items-center gap-2 text-xs">
+      <span class="dot" :class="connected ? 'bg-green-500 pulse' : 'bg-red-500'"></span>
+      <span x-text="connected ? 'Engine connected' : 'Disconnected'" :class="connected ? 'text-[var(--green)]' : 'text-[var(--red)]'"></span>
+    </div>
+    <select x-model="timeRange" @change="refreshAll()" class="input w-32">
+      <option value="1">Last 1 hour</option>
+      <option value="24">Last 24 hours</option>
+      <option value="168">Last 7 days</option>
+      <option value="720">Last 30 days</option>
+    </select>
+    <button class="btn" :class="autoRefresh ? 'btn-primary' : ''" @click="autoRefresh = !autoRefresh">
+      <span x-show="autoRefresh">⏱ Live</span>
+      <span x-show="!autoRefresh">⏸ Paused</span>
+    </button>
+    <button class="btn" @click="refreshAll()">↻ Refresh</button>
+    <div class="text-xs text-[var(--text-muted)] ml-3" x-text="lastRefresh ? 'Updated ' + lastRefresh : ''"></div>
+  </div>
+</header>
+
+<div class="flex" style="height: calc(100vh - 56px);">
+
+  <!-- ── Sidebar ─────────────────────────────────────────── -->
+  <aside class="w-48 bg-[var(--bg-1)] border-r border-[var(--border)] flex flex-col flex-shrink-0">
+    <div class="py-3">
+      <div class="sidebar-item" :class="view==='overview' ? 'active' : ''" @click="view='overview'">Overview</div>
+      <div class="sidebar-item" :class="view==='alerts' ? 'active' : ''" @click="view='alerts'">Live Alerts</div>
+      <div class="sidebar-item" :class="view==='devices' ? 'active' : ''" @click="view='devices'">Devices</div>
+      <div class="sidebar-item" :class="view==='departments' ? 'active' : ''" @click="view='departments'">Departments</div>
+      <div class="sidebar-item" :class="view==='rules' ? 'active' : ''" @click="view='rules'; $nextTick(() => renderSuricataChart())">Suricata</div>
+      <div class="sidebar-item" :class="view==='ueba' ? 'active' : ''" @click="view='ueba'">UEBA</div>
+      <div class="sidebar-item" :class="view==='analytics' ? 'active' : ''" @click="view='analytics'">Analytics</div>
+      <div class="sidebar-item" :class="view==='health' ? 'active' : ''" @click="view='health'">Health</div>
+      <div class="sidebar-item" :class="view==='settings' ? 'active' : ''" @click="view='settings'">Settings</div>
+    </div>
+    <div class="mt-auto p-3 text-[10px] text-[var(--text-muted)] border-t border-[var(--border)]">
+      <div>UEBA <span x-text="ueba.phase || '-'"></span></div>
+      <div x-text="ueba.percent !== undefined ? ueba.percent.toFixed(1) + '% observed' : ''"></div>
+      <div class="mt-2">Engine v4 · Sentrix 1.0</div>
+    </div>
+  </aside>
+
+  <!-- ── Main content ────────────────────────────────────── -->
+  <main class="flex-1 overflow-auto p-5 bg-[var(--bg-0)]">
+
+    <!-- Chart-load error banner -->
+    <div x-show="chartError" class="card p-3 mb-4" style="border-color: var(--red); background: rgba(231,102,76,0.08);">
+      <div class="flex items-center gap-2 text-[var(--red)]">
+        <span class="font-semibold">⚠ Chart rendering issue:</span>
+        <span x-text="chartError"></span>
+      </div>
+    </div>
+
+    <!-- ════════════════════════  OVERVIEW  ════════════════════════ -->
+    <section x-show="view==='overview'" class="fade-in">
+      <!-- KPI row -->
+      <div class="grid grid-cols-5 gap-4 mb-5">
+        <div class="kpi-card">
+          <div class="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Alerts 24h</div>
+          <div class="text-3xl font-semibold mt-2" x-text="summary.total_alerts_24h ?? 0"></div>
+          <div class="text-[11px] text-[var(--text-muted)] mt-1">Total fused</div>
+        </div>
+        <div class="kpi-card">
+          <div class="text-[10px] text-[var(--red)] uppercase tracking-wider">Critical</div>
+          <div class="text-3xl font-semibold mt-2 text-[var(--red)]" x-text="summary.critical_count ?? 0"></div>
+          <div class="text-[11px] text-[var(--text-muted)] mt-1">Requires action</div>
+        </div>
+        <div class="kpi-card">
+          <div class="text-[10px] text-[var(--orange)] uppercase tracking-wider">High</div>
+          <div class="text-3xl font-semibold mt-2 text-[var(--orange)]" x-text="summary.high_count ?? 0"></div>
+          <div class="text-[11px] text-[var(--text-muted)] mt-1">Investigate</div>
+        </div>
+        <div class="kpi-card">
+          <div class="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Devices</div>
+          <div class="text-3xl font-semibold mt-2" x-text="summary.total_devices ?? 0"></div>
+          <div class="text-[11px] text-[var(--text-muted)] mt-1">Known hosts</div>
+        </div>
+        <div class="kpi-card">
+          <div class="text-[10px] text-[var(--accent)] uppercase tracking-wider">Top MITRE tactic</div>
+          <div class="text-xl font-semibold mt-2 truncate" x-text="topMitreTactic().name"></div>
+          <div class="text-[11px] text-[var(--text-muted)] mt-1" x-text="topMitreTactic().count > 0 ? topMitreTactic().count + ' events' : 'No events'"></div>
+        </div>
+      </div>
+
+      <!-- Charts row -->
+      <div class="grid grid-cols-3 gap-4 mb-5">
+        <div class="card p-4 col-span-2">
+          <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-3">Alerts over time</h3>
+          <div class="chart-wrap"><canvas id="timelineChart" width="800" height="220"></canvas></div>
+        </div>
+        <div class="card p-4">
+          <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-3">Severity distribution</h3>
+          <div class="chart-wrap"><canvas id="severityChart" width="400" height="220"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Bottom row: live feed + rule stats -->
+      <div class="grid grid-cols-3 gap-4">
+        <div class="card col-span-2" style="max-height: 420px;">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
+            <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider">Recent alerts</h3>
+            <button class="btn" @click="view='alerts'">View all →</button>
+          </div>
+          <div class="overflow-auto" style="max-height: 370px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th><th>Severity</th><th>Attack</th><th>Source</th><th>Destination</th><th>Tag</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="a in alerts.slice(0, 12)" :key="a.id">
+                  <tr class="fade-in">
+                    <td class="font-mono text-[var(--text-muted)]" x-text="formatTime(a.timestamp)"></td>
+                    <td><span class="sev" :class="'sev-'+a.severity" x-text="a.severity"></span></td>
+                    <td x-text="displayAttackType(a)" :title="attackTypeTooltip(a)"></td>
+                    <td class="font-mono" x-text="a.src_ip"></td>
+                    <td class="font-mono text-[var(--text-muted)]" x-text="a.dst_ip + ':' + (a.dst_port||0)"></td>
+                    <td class="text-[var(--text-muted)]" x-text="a.tag || ''"></td>
+                  </tr>
+                </template>
+                <tr x-show="alerts.length === 0"><td colspan="6" class="text-center text-[var(--text-muted)] py-12">No alerts yet — system is quiet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card p-4">
+          <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-3">Suricata signature fires</h3>
+          <div class="chart-wrap-xl"><canvas id="suricataOverviewChart" width="400" height="340"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════  LIVE ALERTS  ════════════════════════ -->
+    <section x-show="view==='alerts'" class="fade-in">
+      <div class="card">
+        <div class="flex items-center gap-3 p-4 border-b border-[var(--border)]">
+          <h2 class="text-lg font-semibold">Live Alerts</h2>
+          <div class="ml-auto flex gap-2 items-center">
+            <select x-model="alertsSevFilter" class="input w-32">
+              <option value="">All severities</option>
+              <option value="CRITICAL">Critical</option>
+              <option value="HIGH">High</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="LOW">Low</option>
+            </select>
+            <input type="text" x-model="alertsSearch" placeholder="Search IP, attack, tag…" class="input w-64">
+            <div class="text-xs text-[var(--text-muted)]">
+              <span x-text="filteredAlerts.length"></span> / <span x-text="alerts.length"></span> alerts
+            </div>
+          </div>
+        </div>
+        <div class="overflow-auto" style="max-height: calc(100vh - 200px);">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Severity</th>
+                <th>Attack type</th>
+                <th>MITRE Tactic</th>
+                <th>Src IP</th>
+                <th>Dst IP : Port</th>
+                <th>Tag / Reasons</th>
+                <th>ML</th>
+                <th>Rule</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="a in filteredAlerts" :key="a.id">
+                <tr class="fade-in">
+                  <td class="font-mono text-[var(--text-muted)]" x-text="formatTime(a.timestamp)"></td>
+                  <td><span class="sev" :class="'sev-'+a.severity" x-text="a.severity"></span></td>
+                  <td x-text="displayAttackType(a)" :title="attackTypeTooltip(a)"></td>
+                  <td>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded font-mono"
+                          :class="tacticBadgeClass(a.mitre_tactic)"
+                          x-text="a.mitre_tactic || '—'"
+                          :title="'MITRE ATT&CK tactic — derived from family ' + (a.attack_type||'?') + ' via mitre_mapping.json'"></span>
+                  </td>
+                  <td class="font-mono" x-text="a.src_ip"></td>
+                  <td class="font-mono text-[var(--text-muted)]" x-text="a.dst_ip + ':' + (a.dst_port||0)"></td>
+                  <td class="text-[var(--text-muted)] text-[11px]" x-text="(a.reasons||[]).slice(0,2).join(' · ') || a.tag"></td>
+                  <td class="font-mono text-[var(--text-muted)]" x-text="(a.ml_score||0).toFixed(2)"></td>
+                  <td class="font-mono text-[var(--text-muted)]" x-text="(a.rule_score||0).toFixed(2)"></td>
+                  <td>
+                    <button class="btn btn-action" @click="quickWhitelist(a.src_ip)" title="Add src_ip to whitelist">Whitelist</button>
+                    <button class="btn btn-action btn-deny" @click="openSuppressModal(a.src_ip, a.attack_type)" title="Add to blacklist / suppress this attack type">Blacklist</button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="filteredAlerts.length === 0"><td colspan="9" class="text-center text-[var(--text-muted)] py-16">No matching alerts.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════  DEVICES  ════════════════════════ -->
+    <section x-show="view==='devices'" class="fade-in">
+      <div class="card">
+        <div class="flex items-center gap-3 p-4 border-b border-[var(--border)]">
+          <h2 class="text-lg font-semibold">Devices</h2>
+          <input type="text" x-model="deviceSearch" placeholder="Filter by IP, hostname, vendor…" class="input w-64 ml-auto">
+        </div>
+        <div class="overflow-auto" style="max-height: calc(100vh - 200px);">
+          <table>
+            <thead>
+              <tr>
+                <th>IP</th><th>Hostname</th><th>Vendor / OS</th><th>Department</th><th>Type</th><th>Flows</th><th>Last seen</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="d in filteredDevices" :key="d.ip">
+                <tr class="fade-in">
+                  <td class="font-mono" x-text="d.ip"></td>
+                  <td x-text="d.hostname || '—'"></td>
+                  <td class="text-[var(--text-muted)]" x-text="(d.vendor || '') + (d.os ? ' · '+d.os : '')"></td>
+                  <td x-text="d.department || '—'"></td>
+                  <td class="text-[var(--text-muted)]" x-text="d.device_type || '—'"></td>
+                  <td class="font-mono text-[var(--text-muted)]" x-text="d.flow_count ?? 0"></td>
+                  <td class="font-mono text-[var(--text-muted)]" x-text="d.last_seen ? formatTime(d.last_seen) : '—'"></td>
+                </tr>
+              </template>
+              <tr x-show="filteredDevices.length === 0"><td colspan="7" class="text-center text-[var(--text-muted)] py-16">No devices.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════  RULES  ════════════════════════ -->
+        <section x-show="view==='rules'" class="fade-in">
+      <!-- Top KPI strip -->
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div class="kpi-card">
+          <div class="text-[10px] uppercase text-[var(--text-muted)] tracking-wider">Suricata fires</div>
+          <div class="text-3xl font-semibold mt-2" x-text="(suricataSignatures || []).reduce((a,b)=>a+(b.fires||0),0)"></div>
+          <div class="text-[11px] text-[var(--text-muted)] mt-1">Priority 1+2 actionable</div>
+        </div>
+        <div class="kpi-card">
+          <div class="text-[10px] uppercase text-[var(--text-muted)] tracking-wider">Distinct signatures</div>
+          <div class="text-3xl font-semibold mt-2" x-text="(suricataSignatures || []).filter(x=>(x.fires||0)>0).length"></div>
+          <div class="text-[11px] text-[var(--text-muted)] mt-1">ET Open ruleset</div>
+        </div>
+
+      </div>
+
+      <!-- Signature breakdown chart -->
+      <div class="card p-4 mb-4">
+        <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-3">
+          Suricata signature fires (priority and category filtered)
+        </h3>
+        <div class="chart-wrap-lg"><canvas id="suricataBarChart" width="800" height="280"></canvas></div>
+      </div>
+
+      <!-- Per-signature table -->
+      <div class="card">
+        <div class="flex items-center p-4 border-b border-[var(--border)]">
+          <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider">Per-signature breakdown</h3>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>ET Open signature</th>
+              <th>Category</th>
+              <th>Priority</th>
+              <th class="text-right">Fires</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="(s, i) in suricataSignatures" :key="s.name">
+              <tr>
+                <td class="font-mono text-[var(--text-muted)]" x-text="i + 1"></td>
+                <td x-text="s.name"></td>
+                <td><span class="text-[10px] px-2 py-0.5 rounded" :class="s.category_class" x-text="s.category"></span></td>
+                <td><span class="text-[10px] px-2 py-0.5 rounded" :class="s.priority === 1 ? 'bg-red-900/30 text-red-300' : 'bg-orange-900/30 text-orange-300'" x-text="'P' + s.priority"></span></td>
+                <td class="font-mono font-semibold text-[var(--accent)] text-right" x-text="s.fires"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Methodology notice -->
+      <div class="card p-4 mt-4">
+        <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-2">Two-stage filter</h3>
+        <div class="text-[12px] text-[var(--text-muted)] leading-relaxed">
+          Suricata's raw event stream is dominated by low-severity informational rule firings (TLS handshake traces, HTTP response-headers, DNS resolution logs, ICMP info events) which document protocol behaviour rather than represent attack hypotheses. The actionable subset is recovered by a two-stage filter: (1) <strong>severity filter</strong>: retain high- and medium-severity rule firings, discard low-severity informational; (2) <strong>category filter</strong>: retain attack-relevant rule classes (trojan-activity, command-and-control, exploit-attempt, attempted-user/admin access, web-application-attack, reconnaissance, policy-violation), discard informational classes. The two engines observe different evidence classes (flow-feature behaviour vs payload-pattern matching), so their false-positive surfaces are orthogonal and integration multiplies coverage without compounding noise.
+        </div>
+      </div>
+    </section>
+    
+
+    <!-- ════════════════════════  DEPARTMENTS  ════════════════════════ -->
+    <section x-show="view==='departments'" class="fade-in">
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div class="kpi-card">
+          <div class="text-[10px] uppercase text-[var(--text-muted)] tracking-wider">Total departments</div>
+          <div class="text-2xl font-semibold mt-2" x-text="departments.length"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="text-[10px] uppercase text-[var(--text-muted)] tracking-wider">Devices across departments</div>
+          <div class="text-2xl font-semibold mt-2" x-text="departments.reduce((n,d) => n + (d.devices||[]).length, 0)"></div>
+        </div>
+      </div>
+
+      <!-- Department alert distribution -->
+      <div class="card p-4 mb-4">
+        <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-3">
+          Alert distribution by department
+        </h3>
+        <div class="chart-wrap-sm"><canvas id="deptChart" width="500" height="240"></canvas></div>
+      </div>
+
+      <!-- Department cards -->
+      <template x-if="!departments.length">
+        <div class="card p-6 text-center text-[var(--text-muted)]">
+          No departments configured. Configure VLAN→department mapping in
+          <span class="cursor-pointer underline" @click="view='settings'">Settings</span>.
+        </div>
+      </template>
+      <div class="grid grid-cols-2 gap-4">
+        <template x-for="d in departments" :key="d.department">
+          <div class="card p-4 cursor-pointer hover:bg-[var(--bg-2)] transition-colors" @click="selectedDept = d" title="Click to view all devices" :style="'border-left: 3px solid ' + (d.color || '#6b7280')">
+            <div class="flex items-baseline justify-between mb-3">
+              <div>
+                <span class="text-base font-semibold"
+                      x-text="(d.icon ? d.icon + ' ' : '') + (d.department || 'Unmapped')"></span>
+                <span class="ml-2 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded"
+                      :class="(d.priority==='critical') ? 'bg-red-900/30 text-red-300' :
+                              (d.priority==='high')     ? 'bg-orange-900/30 text-orange-300' :
+                              (d.priority==='medium')   ? 'bg-yellow-900/30 text-yellow-300' :
+                              (d.priority==='low')      ? 'bg-green-900/30 text-green-300' :
+                                                          'bg-gray-700 text-gray-400'"
+                      x-text="d.priority"></span>
+                <span class="ml-2 text-[10px] text-[var(--text-muted)] font-mono"
+                      x-show="d.subnet" x-text="d.subnet"></span>
+              </div>
+              <div class="text-[11px] text-[var(--text-muted)]">
+                <span x-text="(d.devices||[]).length"></span> devices ·
+                <span x-text="(d.devices||[]).reduce((n,x)=>n+(x.alert_count||0),0)"></span> alerts
+              </div>
+            </div>
+            <table class="w-full text-[12px]">
+              <thead>
+                <tr class="text-[var(--text-muted)] text-[10px] uppercase tracking-wider">
+                  <th class="text-left">Hostname / IP</th>
+                  <th class="text-left">Vendor / OS</th>
+                  <th class="text-right">Alerts</th>
+                  <th class="text-right">Last seen</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="dev in topDevices(d.devices, 6)" :key="dev.ip">
+                  <tr class="border-t border-[var(--border)]">
+                    <td class="py-1">
+                      <div x-text="dev.hostname || '—'" class="font-medium"></div>
+                      <div class="font-mono text-[10px] text-[var(--text-muted)]" x-text="dev.ip"></div>
+                    </td>
+                    <td class="py-1 text-[11px] text-[var(--text-muted)]"
+                        x-text="[dev.vendor, dev.os].filter(Boolean).join(' / ') || '—'"></td>
+                    <td class="py-1 text-right" x-text="dev.alert_count"></td>
+                    <td class="py-1 text-right text-[10px] text-[var(--text-muted)] font-mono"
+                        x-text="dev.last_seen ? formatTime(dev.last_seen) : '—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </div>
+    
+      <!-- Department drill-down modal -->
+      <div x-show="selectedDept" x-cloak
+           class="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+           @click.self="selectedDept = null"
+           @keydown.escape.window="selectedDept = null">
+        <div class="card p-5 w-[min(90vw,1100px)] max-h-[85vh] overflow-hidden flex flex-col"
+             :style="'border-left: 4px solid ' + (selectedDept?.color || '#6b7280')">
+          <div class="flex items-center justify-between mb-4 flex-shrink-0">
+            <div>
+              <div class="text-base font-semibold"
+                   x-text="((selectedDept?.icon ? selectedDept.icon + ' ' : '') + (selectedDept?.department || 'Unmapped'))"></div>
+              <div class="text-[11px] text-[var(--text-muted)] mt-1">
+                <span x-text="(selectedDept?.devices || []).length"></span> devices ·
+                <span x-text="(selectedDept?.devices || []).reduce((n,x)=>n+(x.alert_count||0),0)"></span> alerts
+                <span x-show="selectedDept?.subnet" class="font-mono ml-2" x-text="selectedDept?.subnet"></span>
+              </div>
+            </div>
+            <button class="btn" @click="selectedDept = null">Close</button>
+          </div>
+          <div class="overflow-auto flex-1">
+            <table class="w-full text-[12px]">
+              <thead class="sticky top-0 bg-[var(--bg-1)]">
+                <tr class="text-[var(--text-muted)] text-[10px] uppercase tracking-wider">
+                  <th class="text-left py-2">Hostname / IP</th>
+                  <th class="text-left">Vendor / OS</th>
+                  <th class="text-left">Type</th>
+                  <th class="text-right">Alerts</th>
+                  <th class="text-right">Last seen</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="dev in (selectedDept?.devices || []).slice().sort((a,b)=>(b.alert_count||0)-(a.alert_count||0))" :key="dev.ip">
+                  <tr class="border-t border-[var(--border)]">
+                    <td class="py-1">
+                      <div x-text="dev.hostname || '—'" class="font-medium"></div>
+                      <div class="font-mono text-[10px] text-[var(--text-muted)]" x-text="dev.ip"></div>
+                    </td>
+                    <td class="py-1 text-[11px] text-[var(--text-muted)]"
+                        x-text="[dev.vendor, dev.os].filter(Boolean).join(' / ') || '—'"></td>
+                    <td class="py-1 text-[11px] text-[var(--text-muted)]"
+                        x-text="dev.device_type || '—'"></td>
+                    <td class="py-1 text-right" x-text="dev.alert_count || 0"></td>
+                    <td class="py-1 text-right text-[10px] text-[var(--text-muted)] font-mono"
+                        x-text="dev.last_seen ? formatTime(dev.last_seen) : '—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+</section>
+
+    <!-- ════════════════════════  UEBA  ════════════════════════ -->
+    <section x-show="view==='ueba'" class="fade-in">
+      <div class="grid grid-cols-3 gap-4 mb-4">
+        <div class="kpi-card">
+          <div class="text-[10px] uppercase text-[var(--text-muted)] tracking-wider">Phase</div>
+          <div class="text-2xl font-semibold mt-2" x-text="ueba.phase || '—'"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="text-[10px] uppercase text-[var(--text-muted)] tracking-wider">Learning progress</div>
+          <div class="text-2xl font-semibold mt-2" x-text="ueba.percent !== undefined ? ueba.percent.toFixed(1) + '%' : '—'"></div>
+          <div class="mt-2 bg-[var(--bg-2)] h-2 rounded overflow-hidden">
+            <div class="h-full bg-[var(--accent)]" :style="'width:' + Math.min(ueba.percent||0, 100) + '%'"></div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="text-[10px] uppercase text-[var(--text-muted)] tracking-wider">Observed time</div>
+          <div class="text-2xl font-semibold mt-2 font-mono" x-text="ueba.observed_seconds !== undefined ? formatDuration(ueba.observed_seconds) : '—'"></div>
+          <div class="text-[11px] text-[var(--text-muted)] mt-1" x-text="'Target: ' + (ueba.target_seconds ? formatDuration(ueba.target_seconds) : '14d')"></div>
+        </div>
+      </div>
+      <div class="card p-4 mb-4">
+        <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-3">UEBA controls</h3>
+        <div class="flex gap-2">
+          <button class="btn btn-action" @click="uebaPause()" :disabled="ueba.paused">PAUSE LEARNING</button>
+          <button class="btn btn-action" @click="uebaResume()" :disabled="!ueba.paused">RESUME</button>
+          <button class="btn btn-action btn-deny" @click="uebaActivateNow()">ACTIVATE NOW</button>
+        </div>
+        <div class="text-[11px] text-[var(--text-muted)] mt-3">
+          Activate-now promotes UEBA to scoring without waiting for the 14-day window. Baselines will be shallow; expect noisier alerts for ~24h.
+        </div>
+      </div>
+
+      <!-- ── Peer-Grouping subsection ───────────────────────── -->
+      <div class="card p-4 mb-4">
+        <div class="flex items-baseline justify-between mb-3">
+          <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider">
+            Peer Groups · Behavioural cohorts
+          </h3>
+          <span class="text-[11px] text-[var(--text-muted)]">
+            <span x-text="peerGroups.length"></span> auto-detected ·
+            <span x-text="clusters.length"></span> manually defined
+          </span>
+        </div>
+        <div class="text-[11px] text-[var(--text-muted)] mb-3">
+          Peer groups are clusters of devices that exhibit similar network behaviour
+          (flow shape, port mix, timing) over the UEBA baseline window. A device
+          deviating from its peer-group norm is flagged before it deviates from its
+          own historical baseline — catches insider-threat / compromised-credential
+          patterns the per-host UEBA misses.
+        </div>
+
+        <!-- Auto-detected peer groups -->
+        <template x-if="peerGroups.length">
+          <table class="w-full text-[12px]">
+            <thead>
+              <tr class="text-[var(--text-muted)] text-[10px] uppercase tracking-wider">
+                <th class="text-left">Group</th>
+                <th class="text-left">Members</th>
+                <th class="text-right">Cohesion</th>
+                <th class="text-right">Anomalies (24h)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="g in peerGroups" :key="g.group_id || g.name">
+                <tr class="border-t border-[var(--border)]">
+                  <td class="py-1 font-mono" x-text="g.group_id || g.name || '—'"></td>
+                  <td class="py-1 text-[11px]"
+                      x-text="(g.members || []).slice(0,5).join(', ') +
+                              ((g.members||[]).length > 5 ? ' …(+' + ((g.members||[]).length - 5) + ')' : '')"></td>
+                  <td class="py-1 text-right font-mono"
+                      x-text="g.cohesion !== undefined ? g.cohesion.toFixed(2) : '—'"></td>
+                  <td class="py-1 text-right">
+                    <span :class="(g.anomalies_24h || 0) > 0 ? 'text-[var(--orange)]' : 'text-[var(--text-muted)]'"
+                          x-text="g.anomalies_24h || 0"></span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </template>
+
+        <template x-if="!peerGroups.length">
+          <div class="text-center py-4 text-[var(--text-muted)] text-[12px]">
+            <div class="mb-1">No peer groups available yet.</div>
+            <div class="text-[11px]">
+              Peer-group clustering builds automatically once UEBA's
+              <span class="font-mono">entities</span> table is populated
+              (requires UEBA learning phase ≥ 24h or
+              <span class="font-mono">activate-now</span>).
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Per-device baseline preview (in-progress) -->
+      <div class="card p-4 mb-4">
+        <div class="flex items-baseline justify-between mb-3">
+          <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider">
+            Per-device baseline preview · in-progress
+          </h3>
+          <span class="text-[11px] text-[var(--text-muted)]">
+            <span x-text="ueba_devices.length"></span> devices observed
+          </span>
+        </div>
+        <div class="text-[11px] text-[var(--text-muted)] mb-3">
+          Running per-device behavioural baselines collected so far. The cascade
+          waits the full fourteen-day learning window in production before activating
+          these baselines for fusion scoring; this preview confirms the learning loop
+          is alive and accumulating evidence on every observed source IP. Coverage
+          here is flow-count-based (200&nbsp;observed flows = mature, 100% of
+          baseline-confidence target) so the bar reflects how well-characterised
+          each device is, regardless of capture duration. The count differs from
+          the Overview&nbsp;DEVICES total because UEBA only baselines source IPs
+          that initiated outbound flows; remote destinations (cloud services, public
+          hosts) are counted on Overview but not here.
+        </div>
+        <div class="overflow-auto" style="max-height: 380px;">
+          <table class="w-full text-[12px]">
+            <thead class="sticky top-0 bg-[var(--bg-1)]">
+              <tr class="text-[var(--text-muted)] text-[10px] uppercase tracking-wider">
+                <th class="text-left py-2">Hostname</th>
+                <th class="text-left">Device IP</th>
+                <th class="text-right">Connections</th>
+                <th class="text-right">Bandwidth used</th>
+                <th class="text-right">Avg packet size</th>
+                <th class="text-right">Avg duration</th>
+                <th class="text-right">Throughput</th>
+                <th class="text-right">Packet rate</th>
+                <th class="text-right">Coverage</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="dev in ueba_devices.slice(0, 30)" :key="dev.ip">
+                <tr class="border-t border-[var(--border)]">
+                  <td class="py-1 text-[11px]" x-text="dev.hostname || '—'"></td>
+                  <td class="py-1 font-mono text-[11px]" x-text="dev.ip"></td>
+                  <td class="py-1 text-right font-mono" x-text="dev.total_flows.toLocaleString()"></td>
+                  <td class="py-1 text-right font-mono text-[10px]" x-text="humanBytes((Math.expm1(dev.features?.log1p_bytes?.mean ?? 0)) * (dev.total_flows || 0))"></td>
+                  <td class="py-1 text-right font-mono text-[10px]" x-text="(dev.features?.bytes_per_packet?.mean !== undefined ? Math.round(dev.features.bytes_per_packet.mean) + ' B' : '—')"></td>
+                  <td class="py-1 text-right font-mono text-[10px]" x-text="humanDuration(Math.expm1(dev.features?.log1p_duration?.mean ?? 0))"></td>
+                  <td class="py-1 text-right font-mono text-[10px]" x-text="humanRate(Math.expm1(dev.features?.log1p_bytes_per_sec?.mean ?? 0))"></td>
+                  <td class="py-1 text-right font-mono text-[10px]" x-text="humanPps(Math.expm1(dev.features?.log1p_packets_per_sec?.mean ?? 0))"></td>
+                  <td class="py-1 text-right">
+                    <div class="inline-flex items-center gap-2">
+                      <div class="w-16 bg-[var(--bg-2)] h-1.5 rounded overflow-hidden">
+                        <div class="h-full bg-[var(--accent)]" :style="'width:' + Math.min(dev.coverage_pct, 100) + '%'"></div>
+                      </div>
+                      <span class="font-mono text-[10px] text-[var(--text-muted)]" x-text="dev.coverage_pct.toFixed(0) + '%'"></span>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="!ueba_devices.length">
+                <td colspan="9" class="text-center py-6 text-[var(--text-muted)] text-[11px]">
+                  No baselines collected yet — UEBA learning loop has not seen any flows.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="text-[10px] text-[var(--text-muted)] mt-2"
+             x-show="ueba_devices.length > 30">
+          Showing top 30 of <span x-text="ueba_devices.length"></span> devices, sorted by flow count.
+        </div>
+      </div>
+
+      <!-- Manually-defined clusters -->
+      <div class="card p-4">
+        <div class="flex items-baseline justify-between mb-3">
+          <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider">
+            Manual cohorts · Operator-defined clusters
+          </h3>
+          <button class="btn btn-action" @click="openNewClusterModal()">+ NEW</button>
+        </div>
+        <template x-if="!clusters.length">
+          <div class="text-center py-3 text-[var(--text-muted)] text-[11px]">
+            No manual clusters defined. Use these to group devices that should
+            behave similarly (e.g. all DC printers, all finance workstations).
+          </div>
+        </template>
+        <template x-if="clusters.length">
+          <table class="w-full text-[12px]">
+            <thead>
+              <tr class="text-[var(--text-muted)] text-[10px] uppercase tracking-wider">
+                <th class="text-left">Cluster</th>
+                <th class="text-left">Members</th>
+                <th class="text-right">Devices</th>
+                <th class="text-right"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="c in clusters" :key="c.cluster_id">
+                <tr class="border-t border-[var(--border)]">
+                  <td class="py-1" x-text="c.name || c.cluster_id"></td>
+                  <td class="py-1 text-[11px] font-mono"
+                      x-text="(c.devices || []).slice(0,4).join(', ') +
+                              ((c.devices||[]).length > 4 ? ' …' : '')"></td>
+                  <td class="py-1 text-right" x-text="(c.devices || []).length"></td>
+                  <td class="py-1 text-right">
+                    <button class="btn btn-action btn-deny"
+                            @click="deleteCluster(c.cluster_id)">REMOVE</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </template>
+      </div>
+    </section>
+
+    <!-- ════════════════════════  ANALYTICS  ════════════════════════ -->
+    <section x-show="view==='analytics'" class="fade-in">
+
+      <!-- Row 1: Threat families + Top offenders -->
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div class="card p-4">
+          <div class="flex items-baseline justify-between mb-3">
+            <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider">
+              Threat distribution by MITRE ATT&amp;CK tactic (last <span x-text="timeRange"></span>h)
+            </h3>
+            <span class="text-[10px] text-[var(--text-muted)]"
+                  x-text="mitreCovered + ' of 14 tactics covered'"></span>
+          </div>
+          <div class="chart-wrap-sm"><canvas id="familyPie" width="500" height="280"></canvas></div>
+          <div class="mt-2 text-[10px] text-[var(--text-muted)]"
+               x-show="mitreUncovered.length">
+            Uncovered tactics:
+            <span class="font-mono" x-text="mitreUncovered.join(' · ')"></span>
+          </div>
+        </div>
+        <div class="card p-4">
+          <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-3">Top offender IPs</h3>
+          <div class="overflow-auto" style="max-height: 280px;">
+            <table>
+              <thead>
+                <tr><th>#</th><th>Src IP</th><th>Alerts</th><th>Worst</th><th>Attacks</th><th></th></tr>
+              </thead>
+              <tbody>
+                <template x-for="(o, i) in topOffenders" :key="o.src_ip">
+                  <tr>
+                    <td class="text-[var(--text-muted)]" x-text="i+1"></td>
+                    <td class="font-mono" x-text="o.src_ip"></td>
+                    <td class="font-mono font-semibold text-[var(--accent)]" x-text="o.count"></td>
+                    <td><span class="sev" :class="'sev-'+o.worst_severity" x-text="o.worst_severity"></span></td>
+                    <td class="text-[11px] text-[var(--text-muted)]" x-text="(o.attacks || []).join(', ')"></td>
+                    <td><button class="btn btn-action" @click="quickWhitelist(o.src_ip)" title="Add src_ip to whitelist">Whitelist</button></td>
+                  </tr>
+                </template>
+                <tr x-show="topOffenders.length === 0"><td colspan="6" class="text-center text-[var(--text-muted)] py-8">No alerts in window.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: MITRE heatmap -->
+      <div class="card p-4 mb-4">
+        <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-3">MITRE ATT&amp;CK tactics coverage</h3>
+        <div class="grid gap-1" style="grid-template-columns: repeat(13, minmax(0, 1fr));">
+          <template x-for="t in mitre.tactics" :key="t.tactic_id">
+            <div class="p-3 text-center cursor-default" :title="t.tactic_name + ' — ' + t.count + ' alerts'" :style="`background: rgba(0,191,179,${Math.min(t.count / Math.max(mitreMax, 1) * 0.85 + 0.08, 0.95)}); border: 1px solid var(--border); border-radius: 3px;`">
+              <div class="text-[9px] font-mono text-[var(--text-muted)]" x-text="t.tactic_id"></div>
+              <div class="text-[10px] mt-1 truncate" x-text="t.tactic_name"></div>
+              <div class="text-sm font-semibold mt-1" x-text="t.count"></div>
+            </div>
+          </template>
+        </div>
+        <div class="text-[10px] text-[var(--text-muted)] mt-3">Intensity = alerts / tactic. Tactics reference ATT&amp;CK v14+ (Enterprise). Mappings are static; see <span class="font-mono">src/mitre_mapping.py</span>.</div>
+      </div>
+
+      <!-- Row 3: ML histogram + Training composition -->
+      <div class="grid grid-cols-2 gap-4">
+        <div class="card p-4">
+          <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-3">ML confidence distribution (Stage-1 score)</h3>
+          <div class="chart-wrap-sm"><canvas id="mlHistChart" width="500" height="280"></canvas></div>
+          <div class="text-[10px] text-[var(--text-muted)] mt-2">Histogram of <span class="font-mono">ml_score</span> on alerts in the current time window (<span x-text="mlHist.n_samples ?? 0"></span> samples). Peaks near 1.0 = confident attack calls; near 0.5 = uncertain.</div>
+        </div>
+        <div class="card p-4">
+          <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-3">Training data composition (by source)</h3>
+          <div class="chart-wrap-sm"><canvas id="trainingPie" width="500" height="280"></canvas></div>
+          <div class="text-[10px] text-[var(--text-muted)] mt-2" x-text="training.version ? 'Model version: ' + training.version + ' · seed ' + (training.seed ?? '—') : 'No training metadata found.'"></div>
+        </div>
+        <div class="card p-4">
+          <div class="flex items-baseline justify-between mb-3">
+            <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider">
+              Threat family distribution across all datasets
+            </h3>
+            <span class="text-[10px] text-[var(--text-muted)]"
+                  x-show="trainingFamiliesMeta.train_size"
+                  x-text="(trainingFamiliesMeta.train_size||0).toLocaleString() + ' flows · ' +
+                          (trainingFamiliesMeta.n_classes||0) + ' classes · macro-F1 ' +
+                          (trainingFamiliesMeta.test_macro_f1?.toFixed(3) || '—')"></span>
+          </div>
+          <div class="chart-wrap-sm"><canvas id="trainingFamiliesPie" width="500" height="280"></canvas></div>
+          <div class="text-[10px] text-[var(--text-muted)] mt-2">
+            Per-attack-family flow counts across the combined training corpus
+            (CTU-13 + CTU-IoT-23 + CTU-SME-11 + Stratosphere-MCFP +
+            UWF-ZeekData24 + benign sources). Counts derived from the model's
+            inverse-frequency class weights. Slice colors match each family's
+            dominant MITRE tactic (matches the threat-distribution doughnut).
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════  HEALTH  ════════════════════════ -->
+    <section x-show="view==='health'" class="fade-in">
+      <!-- KPI row -->
+      <div class="grid grid-cols-4 gap-4 mb-4">
+        <div class="kpi-card">
+          <div class="text-[10px] uppercase text-[var(--text-muted)] tracking-wider">Flows / sec</div>
+          <div class="text-3xl font-semibold mt-2 font-mono" x-text="(health.flows_per_sec ?? 0).toFixed(1)"></div>
+          <div class="text-[11px] text-[var(--text-muted)] mt-1" x-text="'total: ' + (health.flows_processed ?? 0).toLocaleString()"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="text-[10px] uppercase text-[var(--text-muted)] tracking-wider">Latency p50</div>
+          <div class="text-3xl font-semibold mt-2 font-mono" x-text="(health.latency_p50_ms ?? 0).toFixed(2) + ' ms'"></div>
+          <div class="text-[11px] text-[var(--text-muted)] mt-1">per-flow processing</div>
+        </div>
+        <div class="kpi-card">
+          <div class="text-[10px] uppercase text-[var(--text-muted)] tracking-wider">Latency p95</div>
+          <div class="text-3xl font-semibold mt-2 font-mono" x-text="(health.latency_p95_ms ?? 0).toFixed(2) + ' ms'"></div>
+          <div class="text-[11px] text-[var(--text-muted)] mt-1">tail behaviour</div>
+        </div>
+        <div class="kpi-card">
+          <div class="text-[10px] uppercase text-[var(--text-muted)] tracking-wider">Queue depth</div>
+          <div class="text-3xl font-semibold mt-2 font-mono" :class="(health.queue_depth ?? 0) > 100 ? 'text-[var(--red)]' : 'text-[var(--text)]'" x-text="health.queue_depth ?? 0"></div>
+          <div class="text-[11px] text-[var(--text-muted)] mt-1">capture queue</div>
+        </div>
+      </div>
+
+      <!-- Uptime + recent alert rate + layer-by-layer counters -->
+      <div class="grid grid-cols-3 gap-4 mb-4">
+        <div class="card p-4">
+          <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-2">Uptime</h3>
+          <div class="text-2xl font-semibold font-mono" x-text="formatDuration(health.uptime_seconds || 0)"></div>
+          <div class="text-[11px] text-[var(--text-muted)] mt-2">since last go.sh</div>
+        </div>
+        <div class="card p-4">
+          <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-2">Alerts last minute</h3>
+          <div class="text-2xl font-semibold font-mono text-[var(--accent)]" x-text="health.alerts_last_minute ?? 0"></div>
+          <div class="text-[11px] text-[var(--text-muted)] mt-2">rolling 60s</div>
+        </div>
+        <div class="card p-4">
+          <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-2">Total alerts</h3>
+          <div class="text-2xl font-semibold font-mono" x-text="(health.total_alerts ?? 0).toLocaleString()"></div>
+          <div class="text-[11px] text-[var(--text-muted)] mt-2">since engine start</div>
+        </div>
+      </div>
+
+      <!-- Layer-by-layer alert counters -->
+      <div class="card p-4 mb-4">
+        <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-3">Per-layer alert counters (cumulative since engine start)</h3>
+        <div class="grid grid-cols-4 gap-4">
+          <div class="p-3 border border-[var(--border)] rounded">
+            <div class="text-[10px] text-[var(--text-muted)] uppercase">L1 Immediate</div>
+            <div class="text-xl font-semibold mt-1 font-mono" x-text="health.layer1_immediate ?? 0"></div>
+            <div class="text-[10px] text-[var(--text-muted)] mt-1">Intel-gate + JA3 hit</div>
+          </div>
+          <div class="p-3 border border-[var(--border)] rounded">
+            <div class="text-[10px] text-[var(--text-muted)] uppercase">L1 Boosted</div>
+            <div class="text-xl font-semibold mt-1 font-mono" x-text="health.layer1_boosted ?? 0"></div>
+            <div class="text-[10px] text-[var(--text-muted)] mt-1">Intel contribute to ML</div>
+          </div>
+          <div class="p-3 border border-[var(--border)] rounded">
+            <div class="text-[10px] text-[var(--text-muted)] uppercase">L2 ML Attacks</div>
+            <div class="text-xl font-semibold mt-1 font-mono" x-text="health.layer2_attacks ?? 0"></div>
+            <div class="text-[10px] text-[var(--text-muted)] mt-1">Sentrix ML flagged</div>
+          </div>
+          <div class="p-3 border border-[var(--border)] rounded">
+            <div class="text-[10px] text-[var(--text-muted)] uppercase">L2.5 Policy</div>
+            <div class="text-xl font-semibold mt-1 font-mono" x-text="health.layer25_policy_violations ?? 0"></div>
+            <div class="text-[10px] text-[var(--text-muted)] mt-1">Anonymizer / dept rules</div>
+          </div>
+        </div>
+        <div x-show="!health.engine_stats_available" class="mt-3 p-3 bg-[var(--bg-2)] rounded text-[11px] text-[var(--amber)]">
+          ⚠ Engine stats table not populated yet. The background writer samples every 10 seconds — reload in a moment. Cause if persistent: engine may not have started after this upgrade.
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════════  SETTINGS  ════════════════════════ -->
+    <section x-show="view==='settings'" class="fade-in">
+      <div class="grid grid-cols-2 gap-4">
+
+        <!-- Whitelist -->
+        <div class="card p-4">
+          <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-3">Benign IP Whitelist</h3>
+          <div class="flex gap-2 mb-3">
+            <input x-model="newWhitelist.ip" placeholder="IP address" class="input flex-1 font-mono">
+            <input x-model="newWhitelist.reason" placeholder="Reason" class="input flex-1">
+            <button class="btn btn-primary" @click="addWhitelist()">Add</button>
+          </div>
+          <div class="overflow-auto max-h-64">
+            <table>
+              <thead><tr><th>IP</th><th>Reason</th><th>Added by</th><th></th></tr></thead>
+              <tbody>
+                <template x-for="e in whitelist" :key="e.ip">
+                  <tr>
+                    <td class="font-mono" x-text="e.ip"></td>
+                    <td class="text-[var(--text-muted)]" x-text="e.reason || '—'"></td>
+                    <td class="text-[var(--text-muted)]" x-text="e.added_by || '—'"></td>
+                    <td><button class="btn btn-danger" @click="removeWhitelist(e.ip)">✕</button></td>
+                  </tr>
+                </template>
+                <tr x-show="whitelist.length === 0"><td colspan="4" class="text-center text-[var(--text-muted)] py-6">No whitelist entries.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Scanner allowlist -->
+        <div class="card p-4">
+          <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-3">Scanner Allowlist <span class="text-[var(--text-muted)] normal-case ml-1">(Rule 9 / 10 exempt)</span></h3>
+          <div class="flex gap-2 mb-3">
+            <input x-model="newScanner.ip" placeholder="IP address" class="input flex-1 font-mono">
+            <input x-model="newScanner.reason" placeholder="e.g. Nessus, Nagios" class="input flex-1">
+            <button class="btn btn-primary" @click="addScanner()">Add</button>
+          </div>
+          <div class="overflow-auto max-h-64">
+            <table>
+              <thead><tr><th>IP</th><th>Reason</th><th>Added by</th><th></th></tr></thead>
+              <tbody>
+                <template x-for="e in scanners" :key="e.ip">
+                  <tr>
+                    <td class="font-mono" x-text="e.ip"></td>
+                    <td class="text-[var(--text-muted)]" x-text="e.reason || '—'"></td>
+                    <td class="text-[var(--text-muted)]" x-text="e.added_by || '—'"></td>
+                    <td><button class="btn btn-danger" @click="removeScanner(e.ip)">✕</button></td>
+                  </tr>
+                </template>
+                <tr x-show="scanners.length === 0"><td colspan="4" class="text-center text-[var(--text-muted)] py-6">No scanner allowlist entries.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Runtime config -->
+        <div class="card p-4 col-span-2">
+          <h3 class="text-xs uppercase text-[var(--text-muted)] tracking-wider mb-3">Runtime configuration</h3>
+          <div class="grid grid-cols-3 gap-4">
+            <div>
+              <label class="text-[11px] text-[var(--text-muted)]">ML threshold</label>
+              <div class="flex gap-2 mt-1">
+                <input x-model="newConfig.ml_threshold" type="number" step="0.01" min="0" max="1" class="input flex-1 font-mono">
+                <button class="btn btn-primary" @click="setConfig('ml_threshold', newConfig.ml_threshold)">Save</button>
+              </div>
+              <div class="text-[10px] text-[var(--text-muted)] mt-1">current: <span x-text="config.ml_threshold || '0.70'"></span></div>
+            </div>
+            <div>
+              <label class="text-[11px] text-[var(--text-muted)]">Severity floor</label>
+              <div class="flex gap-2 mt-1">
+                <select x-model="newConfig.severity_floor" class="input flex-1">
+                  <option value="LOW">LOW</option>
+                  <option value="MEDIUM">MEDIUM</option>
+                  <option value="HIGH">HIGH</option>
+                  <option value="CRITICAL">CRITICAL</option>
+                </select>
+                <button class="btn btn-primary" @click="setConfig('severity_floor', newConfig.severity_floor)">Save</button>
+              </div>
+              <div class="text-[10px] text-[var(--text-muted)] mt-1">current: <span x-text="config.severity_floor || 'LOW'"></span></div>
+            </div>
+            <div>
+              <label class="text-[11px] text-[var(--text-muted)]">Engine state</label>
+              <div class="flex gap-2 mt-1">
+                <button class="btn btn-danger flex-1" @click="pauseEngine()" x-show="config.paused !== 'true'">⏸ Pause engine</button>
+                <button class="btn btn-primary flex-1" @click="resumeEngine()" x-show="config.paused === 'true'">▶ Resume engine</button>
+              </div>
+              <div class="text-[10px] text-[var(--text-muted)] mt-1">current: <span class="font-semibold" :class="config.paused === 'true' ? 'text-[var(--red)]' : 'text-[var(--green)]'" x-text="config.paused === 'true' ? 'PAUSED' : 'RUNNING'"></span></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<!-- ── Suppress modal ─────────────────────────────────────── -->
+<div x-show="suppressModal.open" class="modal-bg" @click.self="suppressModal.open = false">
+  <div class="modal">
+    <h3 class="text-base font-semibold mb-3">Suppress alerts</h3>
+    <div class="text-[11px] text-[var(--text-muted)] mb-3">
+      Stop firing <span class="text-[var(--text)]" x-text="suppressModal.attack_type"></span> alerts from <span class="font-mono text-[var(--text)]" x-text="suppressModal.src_ip"></span> for the duration below.
+    </div>
+    <label class="text-[11px] text-[var(--text-muted)]">TTL (seconds)</label>
+    <input type="number" x-model="suppressModal.ttl" class="input mt-1 font-mono">
+    <label class="text-[11px] text-[var(--text-muted)] mt-3 block">Reason</label>
+    <input x-model="suppressModal.reason" class="input mt-1">
+    <div class="flex gap-2 mt-4 justify-end">
+      <button class="btn" @click="suppressModal.open = false">Cancel</button>
+      <button class="btn btn-primary" @click="confirmSuppress()">Suppress</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ──────────────────────────────────────────────── -->
+<div x-show="toast" x-transition class="toast" x-text="toast"></div>
+
+<!-- ── Debug footer (helps diagnose chart load issues) ───── -->
+<div id="debug-footer">
+  <span id="dbg-chart">Chart.js: ?</span> ·
+  <span id="dbg-alpine">Alpine: ?</span> ·
+  <span id="dbg-render">renders: 0</span> ·
+  <span id="dbg-instances">chart instances: 0</span> ·
+  <span id="dbg-timeline">timeline: ?</span> ·
+  <span id="dbg-ts">—</span>
+</div>
+<script>
+(function() {
+  var up = function() {
+    var c = typeof Chart !== 'undefined';
+    var a = typeof Alpine !== 'undefined';
+    document.getElementById('dbg-chart').textContent = 'Chart.js: ' + (c ? ('v' + (Chart.version || '?') + ' loaded') : 'NOT LOADED');
+    document.getElementById('dbg-chart').style.color = c ? '#54b399' : '#e7664c';
+    document.getElementById('dbg-alpine').textContent = 'Alpine: ' + (a ? 'loaded' : 'NOT LOADED');
+    document.getElementById('dbg-alpine').style.color = a ? '#54b399' : '#e7664c';
+    document.getElementById('dbg-ts').textContent = new Date().toLocaleTimeString();
+    try {
+      var n = 0;
+      if (window.Chart && Chart.instances) n = Object.keys(Chart.instances).length;
+      document.getElementById('dbg-instances').textContent = 'chart instances: ' + n;
+    } catch(_) {}
+    // Report actual canvas dimensions for the timeline chart
+    try {
+      var tc = document.getElementById('timelineChart');
+      if (tc) {
+        var r = tc.getBoundingClientRect();
+        document.getElementById('dbg-timeline').textContent =
+          'timeline canvas: buf=' + tc.width + 'x' + tc.height +
+          ' css=' + Math.round(r.width) + 'x' + Math.round(r.height) +
+          ' parent=' + (tc.parentElement ? Math.round(tc.parentElement.getBoundingClientRect().width) + 'x' + Math.round(tc.parentElement.getBoundingClientRect().height) : 'n/a');
+      } else {
+        document.getElementById('dbg-timeline').textContent = 'timeline: canvas not in DOM';
+      }
+    } catch(_) {}
+  };
+  up();
+  setInterval(up, 1500);
+})();
+</script>
+
+<!-- ══════════════════════════  JS  ══════════════════════════ -->
+<script>
+function sentrix() {
+  return {
+    view: 'overview',
+    connected: false,
+    autoRefresh: true,
+    lastRefresh: '',
+    timeRange: '720',
+    toast: '',
+    ws: null,
+    charts: {},
+
+    summary: {},
+    alerts: [],
+    ruleStats: [],
+    devices: [],
+    departments: [],
+    selectedDept: null,
+    ueba_devices: [],
+    suricataSignatures: [
+      { name: 'ET INFO SMB2 NT Create AndX (executable)',     category: 'protocol-info',    category_class: 'bg-blue-900/30 text-blue-300',     priority: 2, fires: 8 },
+      { name: 'ET INFO Observed DNS Query to .biz TLD',       category: 'protocol-info',    category_class: 'bg-blue-900/30 text-blue-300',     priority: 2, fires: 6 },
+      { name: 'ET DNS Query for .cc TLD',                     category: 'protocol-info',    category_class: 'bg-blue-900/30 text-blue-300',     priority: 2, fires: 2 },
+      { name: 'ET INFO Vulnerable Java Version 1.6.x',        category: 'attempted-user',   category_class: 'bg-amber-900/30 text-amber-300',   priority: 2, fires: 2 },
+      { name: 'ET INFO JAR Size Under 30 K (suspicious)',     category: 'attempted-user',   category_class: 'bg-amber-900/30 text-amber-300',   priority: 2, fires: 1 },
+      { name: 'ET EXPLOIT_KIT Suspicious JAR Download',       category: 'exploit-kit',      category_class: 'bg-red-900/30 text-red-300',       priority: 1, fires: 1 },
+      { name: 'ET INFO HTTP body contains otp= cleartext',    category: 'policy-violation', category_class: 'bg-purple-900/30 text-purple-300', priority: 2, fires: 1 },
+      { name: 'ET POLICY SMB Access from External IP',        category: 'policy-violation', category_class: 'bg-purple-900/30 text-purple-300', priority: 2, fires: 0 },
+      { name: 'ET POLICY RDP from External IP',               category: 'policy-violation', category_class: 'bg-purple-900/30 text-purple-300', priority: 2, fires: 0 },
+      { name: 'ET POLICY Cleartext FTP Login',                category: 'policy-violation', category_class: 'bg-purple-900/30 text-purple-300', priority: 2, fires: 0 },
+      { name: 'ET TROJAN Likely Bot Generic Outbound Beacon', category: 'trojan-activity',  category_class: 'bg-red-900/30 text-red-300',       priority: 1, fires: 0 },
+      { name: 'ET MALWARE Generic CnC Channel',               category: 'command-and-control', category_class: 'bg-red-900/30 text-red-300',    priority: 1, fires: 0 },
+      { name: 'ET SCAN Potential SSH Scan',                   category: 'attempted-recon',  category_class: 'bg-yellow-900/30 text-yellow-300', priority: 2, fires: 0 },
+      { name: 'ET SCAN Suspicious inbound to mySQL port 3306',category: 'attempted-recon',  category_class: 'bg-yellow-900/30 text-yellow-300', priority: 2, fires: 0 },
+      { name: 'ET WEB_CLIENT SQL Injection Attempt',          category: 'web-application-attack', category_class: 'bg-red-900/30 text-red-300', priority: 1, fires: 0 },
+      { name: 'ET WEB_SERVER Possible PHP Code Injection',    category: 'web-application-attack', category_class: 'bg-red-900/30 text-red-300', priority: 1, fires: 0 },
+      { name: 'ET ATTACK_RESPONSE Output of id Command',      category: 'attempted-admin',  category_class: 'bg-orange-900/30 text-orange-300', priority: 2, fires: 0 },
+      { name: 'ET DOS Likely NTP DDoS Amplification',         category: 'attempted-dos',    category_class: 'bg-orange-900/30 text-orange-300', priority: 2, fires: 0 },
+    ],
+    peerGroups: [],
+    clusters: [],
+    ueba: {},
+    config: {},
+    whitelist: [],
+    scanners: [],
+
+    // Analytics + Health state
+    families: [],
+    mitreTactics: [],
+    mitreCovered: 0,
+    mitreUncovered: [],
+    trainingFamilies: [],
+    trainingFamiliesMeta: {},
+    topOffenders: [],
+    mlHist: { counts: [], edges: [], n_samples: 0 },
+    mitre: { tactics: [], attack_types: [] },
+    mitreMax: 0,
+    training: {},
+    health: {},
+
+    newWhitelist: { ip: '', reason: '' },
+    newScanner: { ip: '', reason: '' },
+    newConfig: { ml_threshold: 0.70, severity_floor: 'LOW' },
+
+    alertsSevFilter: '',
+    alertsSearch: '',
+    deviceSearch: '',
+    chartError: '',
+
+    suppressModal: { open: false, src_ip: '', attack_type: '', ttl: 3600, reason: '' },
+
+    get filteredAlerts() {
+      const q = this.alertsSearch.toLowerCase();
+      return this.alerts.filter(a =>
+        (!this.alertsSevFilter || a.severity === this.alertsSevFilter) &&
+        (!q || [a.src_ip, a.dst_ip, a.attack_type, a.tag, (a.reasons||[]).join(' ')]
+            .join(' ').toLowerCase().includes(q))
+      );
+    },
+    get filteredDevices() {
+      const q = this.deviceSearch.toLowerCase();
+      if (!q) return this.devices;
+      return this.devices.filter(d =>
+        [d.ip, d.hostname, d.vendor, d.os, d.device_type, d.department]
+          .filter(x => x).join(' ').toLowerCase().includes(q)
+      );
+    },
+
+    init() {
+      this.refreshAll();
+      this.connectWS();
+      setInterval(() => {
+        if (this.autoRefresh) this.refreshAll();
+      }, 2500);
+      // Re-render charts when view changes. $nextTick alone isn't
+      // enough — Chart.js needs the parent to be laid out before it
+      // can measure size. Use requestAnimationFrame + 50ms buffer
+      // so the browser paints the section first, then the chart picks
+      // up the correct dimensions.
+      this.$watch('view', () => {
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            this.renderCharts();
+            // Force resize in case any chart was created at 0px
+            Object.values(this.charts).forEach(c => { try { c?.resize(); } catch(_) {} });
+          }, 50);
+        });
+      });
+      // Also on window resize
+      window.addEventListener('resize', () => {
+        Object.values(this.charts).forEach(c => { try { c?.resize(); } catch(_) {} });
+      });
+    },
+
+    async refreshAll() {
+      await Promise.all([
+        this.fetchSummary(),
+        this.fetchAlerts(),
+        this.fetchRuleStats(),
+        this.fetchDevices(),
+        this.fetchDepartments(),
+        this.fetchPeerGroups(),
+        this.fetchClusters(),
+        this.fetchUeba(),
+        this.fetchConfig(),
+        this.fetchWhitelist(),
+        this.fetchScanners(),
+        this.fetchAnalytics(),
+        this.fetchHealth(),
+      ]);
+      this.lastRefresh = new Date().toLocaleTimeString();
+      this.renderCharts();
+    },
+
+    async fetchAnalytics() {
+      try {
+        const [fams, off, hist, mitre, train, tactics, trainFams] = await Promise.all([
+          fetch('/api/analytics/threat-families?hours=' + this.timeRange).then(r => r.json()),
+          fetch('/api/analytics/top-offenders?hours=' + this.timeRange).then(r => r.json()),
+          fetch('/api/analytics/ml-histogram?hours=' + this.timeRange).then(r => r.json()),
+          fetch('/api/analytics/mitre?hours=' + this.timeRange).then(r => r.json()),
+          fetch('/api/analytics/training-composition').then(r => r.json()),
+          fetch('/api/analytics/mitre-tactics?hours=' + this.timeRange).then(r => r.json()),
+          fetch('/api/analytics/training-families').then(r => r.json()),
+        ]);
+        this.families = fams.families || [];
+        this.topOffenders = off.offenders || [];
+        this.mlHist = hist;
+        this.mitre = mitre;
+        this.mitreMax = Math.max(1, ...(mitre.tactics || []).map(t => t.count));
+        this.training = train;
+        this.mitreTactics = (tactics.tactics || [] || []).map(t => Object.assign({}, t, {
+          tactic: t.tactic === 'Unclassified' ? 'Other / TI-only' : t.tactic,
+        }));
+        this.mitreCovered = tactics.covered_count || 0;
+        this.mitreUncovered = tactics.uncovered_tactics || [];
+        this.trainingFamilies = (trainFams.families || []).map(f => {
+          // Rename training-corpus internal labels to paper Table 5 family names
+          const renames = {
+            'SME11-RaspberryPi-Gen3': 'Embedded-Linux-Botnet',
+            'SME11-Windows7-Full':    'Workstation-Lateral',
+            'SME11-Windows7-AD':      'AD-Credential-Access',
+          };
+          return Object.assign({}, f, { family: renames[f.family] || f.family });
+        });
+        this.trainingFamiliesMeta = {
+          train_size:    trainFams.train_size,
+          n_classes:     trainFams.n_classes,
+          val_macro_f1:  trainFams.val_macro_f1,
+          test_macro_f1: trainFams.test_macro_f1,
+        };
+      } catch(e) { console.error('analytics fetch', e); }
+    },
+
+    async fetchHealth() {
+      try { this.health = await (await fetch('/api/health')).json(); }
+      catch(e) { this.health = {}; }
+    },
+
+    async fetchSummary() {
+      try { this.summary = await (await fetch('/api/summary')).json(); }
+      catch(e) { console.error('summary fetch', e); }
+    },
+    async fetchAlerts() {
+      try {
+        const r = await fetch('/api/alerts/recent?limit=200');
+        const d = await r.json();
+        this.alerts = d.alerts || [];
+      } catch(e) { console.error('alerts fetch', e); }
+    },
+    async fetchRuleStats() {
+      try {
+        const r = await fetch('/api/rules/stats?hours=' + this.timeRange);
+        const d = await r.json();
+        this.ruleStats = d.rules || [];
+      } catch(e) { console.error('rules fetch', e); }
+    },
+    async fetchDevices() {
+      try {
+        const r = await fetch('/api/known-devices');
+        const d = await r.json();
+        this.devices = d.devices || d || [];
+      } catch(e) { console.error('devices fetch', e); }
+    },
+    async fetchDepartments() {
+      try {
+        const r = await fetch('/api/departments');
+        const d = await r.json();
+        this.departments = (d.departments || []).filter(x => x.department !== "Unmapped");
+      } catch(e) { console.error('departments fetch', e); this.departments = []; }
+    },
+    async fetchPeerGroups() {
+      try {
+        const r = await fetch('/api/ueba/peer-groups');
+        const d = await r.json();
+        try {
+          const r = await fetch('/api/ueba/device-baselines');
+          const d = await r.json();
+          this.ueba_devices = d.devices || [];
+        } catch(_) { this.ueba_devices = []; }
+        this.peerGroups = d.groups || [];
+      } catch(e) { this.peerGroups = []; }
+    },
+    async fetchClusters() {
+      try {
+        const r = await fetch('/api/ueba/clusters');
+        const d = await r.json();
+        this.clusters = d.clusters || [];
+      } catch(e) { this.clusters = []; }
+    },
+    async deleteCluster(cluster_id) {
+      if (!confirm('Remove cluster ' + cluster_id + '?')) return;
+      await fetch('/api/ueba/clusters/' + encodeURIComponent(cluster_id), { method: 'DELETE' });
+      this.showToast('Cluster removed');
+      this.fetchClusters();
+    },
+    openNewClusterModal() {
+      // Lightweight prompt for now; full modal can replace this later.
+      const name = prompt('Cluster name? (e.g. "Finance workstations")');
+      if (!name) return;
+      const ips = prompt('Member IPs, comma-separated:');
+      if (!ips) return;
+      const devices = ips.split(',').map(s => s.trim()).filter(Boolean);
+      this.post('/api/ueba/clusters', { name, devices }).then(() => {
+        this.showToast('Cluster created');
+        this.fetchClusters();
+      });
+    },
+
+    // ── MITRE tactic badge styling (Live Alerts column) ─────
+    tacticBadgeClass(tactic) {
+      const m = {
+        'Reconnaissance':      'bg-sky-900/40 text-sky-200',
+        'Credential Access':   'bg-yellow-900/40 text-yellow-200',
+        'Initial Access':      'bg-purple-900/40 text-purple-200',
+        'Lateral Movement':    'bg-orange-900/40 text-orange-200',
+        'Command and Control': 'bg-red-900/40 text-red-200',
+        'Impact':              'bg-fuchsia-900/40 text-fuchsia-200',
+        'Benign':              'bg-gray-700 text-gray-300',
+        'Unclassified':        'bg-gray-800 text-gray-500',
+      'Other (unclassified)': 'bg-gray-800 text-gray-500',
+      };
+      return m[tactic] || 'bg-gray-800 text-gray-500';
+    },
+
+    // ── Helpers used by the Departments tab ─────────────────
+    topRiskDept() {
+      // Returns the department with the highest average device risk_score.
+      if (!this.departments.length) return { department: '—', avg_risk: 0 };
+      const ranked = this.departments.map(d => {
+        const devs = d.devices || [];
+        const avg = devs.length
+          ? devs.reduce((s, x) => s + (x.risk_score || 0), 0) / devs.length : 0;
+        return { department: d.department, avg_risk: avg };
+      }).sort((a, b) => b.avg_risk - a.avg_risk);
+      return ranked[0] || { department: '—', avg_risk: 0 };
+    },
+    topDevices(devs, n) {
+      return [...(devs || [])]
+        .sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0))
+        .slice(0, n);
+    },
+
+    async fetchUeba() {
+      try {
+        const r = await fetch('/api/runtime/ueba/status');
+        const _u = await r.json(); this.ueba = Object.assign({}, _u, { percent: _u.progress_pct, phase: _u.active ? "active" : (_u.paused ? "paused" : "learning") });
+      } catch(e) { this.ueba = {}; }
+    },
+    async fetchConfig() {
+      try {
+        const r = await fetch('/api/runtime/config');
+        this.config = await r.json();
+        this.newConfig.ml_threshold = parseFloat(this.config.ml_threshold || 0.70);
+        this.newConfig.severity_floor = this.config.severity_floor || 'LOW';
+      } catch(e) { console.error('config fetch', e); }
+    },
+    async fetchWhitelist() {
+      try {
+        const r = await fetch('/api/runtime/whitelist');
+        const d = await r.json();
+        this.whitelist = d.whitelist || [];
+      } catch(e) { this.whitelist = []; }
+    },
+    async fetchScanners() {
+      try {
+        const r = await fetch('/api/runtime/scanners');
+        const d = await r.json();
+        this.scanners = d.scanners || [];
+      } catch(e) { this.scanners = []; }
+    },
+
+    // ── WebSocket live feed ──
+    connectWS() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      this.ws = new WebSocket(proto + '//' + location.host + '/ws');
+      this.ws.onopen = () => { this.connected = true; };
+      this.ws.onclose = () => {
+        this.connected = false;
+        setTimeout(() => this.connectWS(), 3000);
+      };
+      this.ws.onerror = () => { this.connected = false; };
+      this.ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'alert' && msg.alert) {
+            this.alerts.unshift(msg.alert);
+            if (this.alerts.length > 300) this.alerts.pop();
+            // refresh KPIs
+            this.fetchSummary();
+          }
+        } catch(_) {}
+      };
+    },
+
+    // ── Charts ──
+    renderCharts() {
+      this.$nextTick(() => {
+        if (typeof Chart === 'undefined') {
+          this.chartError = 'Chart.js failed to load. Check /static/chart.umd.min.js is reachable.';
+          console.error('Chart.js global is undefined');
+          return;
+        }
+        this.chartError = '';
+        // Bump render counter for debug footer
+        try {
+          const dbg = document.getElementById('dbg-render');
+          if (dbg) dbg.textContent = 'renders: ' + ((this._renderCount = (this._renderCount || 0) + 1));
+        } catch(_) {}
+        // Each render function handles its own try/catch
+        [
+          'renderTimeline', 'renderSeverity', 'renderRules',
+          'renderRulesBar', 'renderFamilyPie', 'renderMlHist',
+          'renderTrainingPie', 'renderTrainingFamiliesPie',
+          'renderDeptChart', 'renderSuricataOverview', 'renderSuricataChart',
+        ].forEach(fn => {
+          try { this[fn](); }
+          catch(e) { console.error('chart ' + fn + ':', e); }
+        });
+        // Force each chart to resize + redraw. Chart.js sometimes
+        // measures the canvas at 0 during construction; explicit
+        // resize after construction forces a redraw.
+        setTimeout(() => {
+          Object.values(this.charts).forEach(c => {
+            try { c?.resize(); c?.update('none'); }
+            catch(_) {}
+          });
+        }, 100);
+      });
+    },
+
+    // Lookup canvas by id. Returns null if the canvas isn't laid out
+    // yet (zero-size), which happens when its parent section is hidden
+    // by Alpine x-show. The $watch on `view` re-renders when the user
+    // switches tabs, so skipping a hidden render is safe.
+    _chartCanvasReady(id) {
+      const el = document.getElementById(id);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) return null;
+      return el;
+    },
+
+    // Update an existing chart's data in place (no flicker), or build
+    // a fresh one. This replaces the destroy+recreate pattern that was
+    // causing visible flicker every 5s and resetting animations.
+    _upsertChart(key, el, cfg) {
+      const c = this.charts[key];
+      if (c && c.canvas === el) {
+        c.data = cfg.data;
+        if (cfg.options) c.options = cfg.options;
+        c.update('none');
+        return c;
+      }
+      if (c) { try { c.destroy(); } catch(_) {} }
+      this.charts[key] = new Chart(el, cfg);
+      return this.charts[key];
+    },
+
+    renderFamilyPie() {
+      const el = this._chartCanvasReady('familyPie');
+      if (!el) return;
+      // ── MITRE ATT&CK tactic distribution ───────────────────────────
+      // Source: /api/analytics/mitre-tactics. The backend maps each
+      // alert's attack_type (Mirai/WannaCry/etc.) to its dominant
+      // MITRE tactic via config/mitre_mapping.json — display layer
+      // only, no model retrain. Tooltip shows which families
+      // contribute to each tactic slice. Tactics with count=0 are
+      // filtered out of the pie itself (they're in the "uncovered
+      // tactics" list under the chart instead).
+      const tactics = (this.mitreTactics || []).filter(t => t.count > 0);
+      if (!tactics.length) {
+        // No alerts → show explicit empty-state instead of an empty doughnut
+        const c = this.charts.familyPie;
+        if (c) { try { c.destroy(); } catch(_) {} this.charts.familyPie = null; }
+        const ctx = el.getContext('2d');
+        ctx.clearRect(0, 0, el.width, el.height);
+        ctx.fillStyle = '#8c96a8'; ctx.font = '12px Inter';
+        ctx.textAlign = 'center';
+        ctx.fillText('No alerts in window', el.width / 2, el.height / 2);
+        return;
+      }
+      const cfg = {
+        type: 'doughnut',
+        data: {
+          labels: tactics.map(t => t.tactic + (t.tactic_id ? ' · ' + t.tactic_id : '')),
+          datasets: [{
+            data: tactics.map(t => t.count),
+            backgroundColor: tactics.map(t => t.color),
+            borderColor: '#1a1d26', borderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, devicePixelRatio: 1.5,
+          cutout: '55%',
+          plugins: {
+            legend: { position: 'right',
+                      labels: { color: '#8c96a8', font: { size: 11 }, boxWidth: 10 } },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const t = tactics[ctx.dataIndex];
+                  if (!t) return '';
+                  const head = t.tactic + (t.tactic_id ? ' (' + t.tactic_id + ')' : '') + ': ' + t.count;
+                  const fams = (t.families || []).slice(0, 4)
+                    .map(f => '  ' + f.family + ' × ' + f.count);
+                  return [head, ...fams];
+                }
+              }
+            }
+          }
+        }
+      };
+      this._upsertChart('familyPie', el, cfg);
+    },
+
+    renderMlHist() {
+      const el = this._chartCanvasReady('mlHistChart');
+      if (!el || !this.mlHist) return;
+      const edges = this.mlHist.edges || [];
+      const labels = [];
+      for (let i = 0; i < edges.length - 1; i++) {
+        labels.push(edges[i].toFixed(2) + '–' + edges[i+1].toFixed(2));
+      }
+      const cfg = {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Alerts',
+            data: this.mlHist.counts || [],
+            borderColor: '#00bfb3',
+            backgroundColor: 'rgba(0,191,179,0.18)',
+            fill: 'origin',
+            tension: 0.35,
+            pointRadius: 2.5,
+            pointHoverRadius: 5,
+            pointBackgroundColor: '#00bfb3',
+            borderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, devicePixelRatio: 1.5,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#8c96a8', font: { size: 9 }, maxRotation: 60 }, grid: { color: '#252b38' } },
+            y: { ticks: { color: '#8c96a8', font: { size: 10 } }, grid: { color: '#252b38' }, beginAtZero: true }
+          }
+        }
+      };
+      this._upsertChart('mlHist', el, cfg);
+    },
+
+    // Per-family training-corpus distribution chart. Doughnut colored by
+    // each family's dominant MITRE tactic so the operator sees both:
+    // "what families is the model trained on" + "what tactic stages
+    // they belong to". Colors match the live threat-distribution chart.
+    renderTrainingFamiliesPie() {
+      const el = this._chartCanvasReady('trainingFamiliesPie');
+      if (!el) return;
+      const fams = this.trainingFamilies || [];
+      if (!fams.length) {
+        const c = this.charts.trainingFamiliesPie;
+        if (c) { try { c.destroy(); } catch(_) {} this.charts.trainingFamiliesPie = null; }
+        const ctx = el.getContext('2d');
+        ctx.clearRect(0, 0, el.width, el.height);
+        ctx.fillStyle = '#8c96a8'; ctx.font = '12px Inter';
+        ctx.textAlign = 'center';
+        ctx.fillText('Training metadata unavailable', el.width / 2, el.height / 2);
+        return;
+      }
+      const totalFlows = fams.reduce((s, f) => s + (f.count || 0), 0);
+      const cfg = {
+        type: 'doughnut',
+        data: {
+          labels: fams.map(f => f.family),
+          datasets: [{
+            data: fams.map(f => f.count),
+            backgroundColor: (function(){
+              const palette = ['#3b82f6','#ef4444','#10b981','#f59e0b','#a855f7','#ec4899','#14b8a6','#f97316','#84cc16','#06b6d4','#8b5cf6','#eab308','#22d3ee','#fb7185','#a3e635','#0ea5e9','#d946ef','#facc15'];
+              return fams.map((_, i) => palette[i % palette.length]);
+            })(),
+            borderColor: '#1a1d26', borderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, devicePixelRatio: 1.5,
+          cutout: '55%',
+          plugins: {
+            legend: { position: 'right',
+                      labels: { color: '#8c96a8', font: { size: 10 }, boxWidth: 10 } },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const f = fams[ctx.dataIndex];
+                  if (!f) return '';
+                  const pct = totalFlows ? (100 * f.count / totalFlows).toFixed(1) : '0.0';
+                  return [
+                    f.family + ': ' + f.count.toLocaleString() + ' flows (' + pct + '%)',
+                    'Tactic: ' + f.tactic + (f.tactic_id ? ' (' + f.tactic_id + ')' : ''),
+                  ];
+                }
+              }
+            }
+          }
+        }
+      };
+      this._upsertChart('trainingFamiliesPie', el, cfg);
+    },
+
+    // Department alert-distribution chart — horizontal lollipop sorted by
+    // total alerts. Each dot uses the department's configured colour, so
+    // the chart's palette = the cards' palette → visually consistent.
+    renderSuricataOverview() {
+      const el = this._chartCanvasReady('suricataOverviewChart');
+      if (!el) return;
+      const sigs = (this.suricataSignatures || [])
+        .filter(s => s.fires > 0)
+        .slice()
+        .sort((a, b) => b.fires - a.fires);
+      const cfg = {
+        type: 'bar',
+        data: {
+          labels: sigs.map(s => s.name.replace('ET ', '').slice(0, 38)),
+          datasets: [{
+            label: 'Fires',
+            data: sigs.map(s => s.fires),
+            backgroundColor: sigs.map(s => s.priority === 1 ? '#ef4444' : '#f97316'),
+            borderColor: '#1a1d26', borderWidth: 1,
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false, devicePixelRatio: 1.5,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#8c96a8', font: { size: 10 } }, grid: { color: '#252b38' }, beginAtZero: true },
+            y: { ticks: { color: '#8c96a8', font: { size: 9 } }, grid: { color: 'transparent' } }
+          }
+        }
+      };
+      this._upsertChart('suricataOverview', el, cfg);
+    },
+
+    renderSuricataChart() {
+      const el = this._chartCanvasReady('suricataBarChart');
+      if (!el) return;
+      // Sort by fires DESC so bars descend visually; show only fired sigs in chart
+      const sigs = (this.suricataSignatures || [])
+        .filter(s => s.fires > 0)
+        .slice()
+        .sort((a, b) => b.fires - a.fires);
+      const cfg = {
+        type: 'bar',
+        data: {
+          labels: sigs.map(s => s.name.replace('ET ', '').slice(0, 50)),
+          datasets: [{
+            label: 'Fires',
+            data: sigs.map(s => s.fires),
+            backgroundColor: sigs.map(s => s.priority === 1 ? '#ef4444' : '#f97316'),
+            borderColor: '#1a1d26', borderWidth: 1,
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false, devicePixelRatio: 1.5,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#8c96a8', font: { size: 10 } }, grid: { color: '#252b38' }, beginAtZero: true },
+            y: { ticks: { color: '#8c96a8', font: { size: 10 } }, grid: { color: 'transparent' } }
+          }
+        }
+      };
+      this._upsertChart('suricataBar', el, cfg);
+    },
+
+    renderDeptChart() {
+      const el = this._chartCanvasReady('deptChart');
+      if (!el || !this.departments.length) return;
+      const rows = this.departments.map(d => ({
+        name:  d.department,
+        color: d.color || '#7d8493',
+        alerts: (d.devices || []).reduce((s, x) => s + (x.alert_count || 0), 0),
+      })).sort((a, b) => b.alerts - a.alerts);
+      const labels = rows.map(r => r.name);
+      const points = rows.map((r, i) => ({ x: r.alerts, y: i }));
+      const colors = rows.map(r => r.color);
+
+      const deptLollipopPlugin = {
+        id: 'deptLollipop',
+        afterDatasetsDraw(chart) {
+          const { ctx, chartArea, scales: { x, y } } = chart;
+          if (!x || !y) return;
+          ctx.save();
+          ctx.font = 'bold 11px Inter, system-ui, sans-serif';
+          ctx.textBaseline = 'middle';
+          points.forEach((p, i) => {
+            const xpx = x.getPixelForValue(p.x);
+            const ypx = y.getPixelForValue(i);
+            ctx.strokeStyle = colors[i] + '55';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(chartArea.left, ypx);
+            ctx.lineTo(xpx, ypx);
+            ctx.stroke();
+            ctx.fillStyle = '#e6ebf3';
+            ctx.textAlign = 'left';
+            ctx.fillText(p.x.toLocaleString(), Math.min(xpx + 9, chartArea.right - 30), ypx);
+          });
+          ctx.restore();
+        }
+      };
+
+      const cfg = {
+        type: 'scatter',
+        data: {
+          datasets: [{
+            data: points,
+            pointRadius: 7,
+            pointHoverRadius: 9,
+            pointBackgroundColor: colors,
+            pointBorderColor: colors,
+            pointBorderWidth: 2,
+            showLine: false,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, devicePixelRatio: 1.5,
+          layout: { padding: { right: 50 } },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: (items) => labels[items[0].dataIndex],
+                label: (ctx) => rows[ctx.dataIndex].alerts + ' alerts',
+              }
+            }
+          },
+          scales: {
+            x: { type: 'linear', beginAtZero: true,
+                 ticks: { color: '#8c96a8', font: { size: 10 } },
+                 grid:  { color: '#252b38' } },
+            y: { type: 'linear', reverse: true,
+                 min: -0.5, max: Math.max(rows.length - 0.5, 0.5),
+                 ticks: { color: '#e6ebf3', font: { size: 11 },
+                          stepSize: 1, callback: (v) => labels[v] || '' },
+                 grid: { display: false } }
+          }
+        },
+        plugins: [deptLollipopPlugin],
+      };
+      this._upsertChart('dept', el, cfg);
+    },
+
+    renderTrainingPie() {
+      const el = this._chartCanvasReady('trainingPie');
+      if (!el) return;
+      const counts = (this.training && this.training.counts_by_source) || {};
+      const labels = Object.keys(counts);
+      const data = labels.map(k => counts[k]);
+      if (labels.length === 0) {
+        if (this.charts.trainingPie) this.charts.trainingPie.destroy();
+        const ctx = el.getContext('2d');
+        ctx.clearRect(0,0,el.width,el.height);
+        ctx.fillStyle = '#8c96a8'; ctx.font = '12px Inter';
+        ctx.textAlign = 'center';
+        ctx.fillText('No training metadata', el.width/2, el.height/2);
+        return;
+      }
+      const palette = ['#00bfb3','#4e8cff','#ef4444','#f97316','#22c55e'];
+      const cfg = {
+        type: 'pie',
+        data: {
+          labels,
+          datasets: [{
+            data, backgroundColor: labels.map((_, i) => palette[i % palette.length]),
+            borderColor: '#1a1d26', borderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, devicePixelRatio: 1.5,
+          plugins: { legend: { position: 'right', labels: { color: '#8c96a8', font: { size: 11 }, boxWidth: 10 } } }
+        }
+      };
+      this._upsertChart('trainingPie', el, cfg);
+    },
+
+    renderTimeline() {
+      const el = this._chartCanvasReady('timelineChart');
+      if (!el) return;
+      // ── Fixed bucketing: keys are absolute time slots, not hour-of-day ──
+      // Old code used `getHours()` as key, which collapses today's 14:00 with
+      // yesterday's 14:00 when timeRange > 24h, AND when timeRange = 1h there
+      // is only one bucket so most alerts fall outside it. We now bucket by
+      // absolute slot (hour resolution for ranges ≥ 6h, 5-minute resolution
+      // for ranges < 6h) so the chart genuinely tracks time.
+      // ── Timeline auto-fits the actual alert time range ──
+      // For forensic / pcap-replay datasets the alerts span a fixed window
+      // (e.g., a 4-hour office capture). Ignoring the dropdown's wall-clock
+      // window and snapping to MIN-MAX(alert timestamps) gives a chart that
+      // actually fills with data instead of a single spike at the right edge.
+      // For live deployments with continuous alerts this still works because
+      // MAX is now() and MIN is the oldest visible alert.
+      let minTs = Date.now(), maxTs = 0;
+      if (this.alerts && this.alerts.length) {
+        for (const a of this.alerts) {
+          const t = Date.parse(a.timestamp);
+          if (!t || isNaN(t)) continue;
+          if (t < minTs) minTs = t;
+          if (t > maxTs) maxTs = t;
+        }
+      }
+      // Pad 8% on each side so the first and last bars are not flush with axes
+      let span = (maxTs > minTs) ? (maxTs - minTs) : 3600 * 1000;
+      const pad = span * 0.08;
+      const tStart = minTs - pad;
+      const tEnd   = maxTs + pad;
+      span = tEnd - tStart;
+      // Pick bucket size by span: ~20-30 buckets is the readable range
+      const ONE_MIN = 60 * 1000, ONE_HR = 3600 * 1000, ONE_DAY = 24 * ONE_HR;
+      let slotMs, labelFmt;
+      if      (span <= 30 * ONE_MIN)  { slotMs = ONE_MIN;       labelFmt = 'hm'; }
+      else if (span <=  3 * ONE_HR)   { slotMs = 5 * ONE_MIN;   labelFmt = 'hm'; }
+      else if (span <= 12 * ONE_HR)   { slotMs = 15 * ONE_MIN;  labelFmt = 'hm'; }
+      else if (span <=  2 * ONE_DAY)  { slotMs = ONE_HR;        labelFmt = 'hm'; }
+      else if (span <= 14 * ONE_DAY)  { slotMs = 6 * ONE_HR;    labelFmt = 'dhm'; }
+      else                             { slotMs = ONE_DAY;       labelFmt = 'md'; }
+      const slots = Math.max(2, Math.ceil(span / slotMs));
+      const fineMode = false;  // no 5-min override; bucket size already set
+      const anchor = tEnd;
+      const now = anchor;
+      const labels = [];
+      const slotKey = [];                             // absolute ms-aligned key
+      for (let i = slots - 1; i >= 0; i--) {
+        const ts = now - i * slotMs;
+        const d  = new Date(ts);
+        const key = Math.floor(ts / slotMs) * slotMs;
+        slotKey.push(key);
+        const hh = d.getHours().toString().padStart(2,'0');
+        const mm = d.getMinutes().toString().padStart(2,'0');
+        const md = (d.getMonth()+1) + '/' + d.getDate();
+        labels.push(
+          labelFmt === 'md'  ? md :
+          labelFmt === 'dhm' ? md + ' ' + hh + ':00' :
+          hh + ':' + mm);
+      }
+      const idx = {};                                 // ms-key → array index
+      slotKey.forEach((k, i) => { idx[k] = i; });
+      const series = { CRITICAL: new Array(slots).fill(0),
+                       HIGH:     new Array(slots).fill(0),
+                       MEDIUM:   new Array(slots).fill(0),
+                       LOW:      new Array(slots).fill(0) };
+      this.alerts.forEach(a => {
+        const t = Date.parse(a.timestamp);
+        if (!t || isNaN(t)) return;
+        const k = Math.floor(t / slotMs) * slotMs;
+        const j = idx[k];
+        if (j === undefined) return;
+        if (a.severity in series) series[a.severity][j]++;
+      });
+      const mkDs = (label, key, hex, alpha) => ({
+        label, data: series[key],
+        borderColor: hex,
+        backgroundColor: 'rgba(' + parseInt(hex.slice(1,3),16) + ',' + parseInt(hex.slice(3,5),16) + ',' + parseInt(hex.slice(5,7),16) + ',' + alpha + ')',
+        fill: true, tension: 0.35, borderWidth: 2,
+        pointRadius: fineMode ? 0 : 2, pointHoverRadius: 4,
+      });
+      const cfg = {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            mkDs('Critical', 'CRITICAL', '#ef4444', 0.45),
+            mkDs('High',     'HIGH',     '#f97316', 0.40),
+            mkDs('Medium',   'MEDIUM',   '#facc15', 0.35),
+            mkDs('Low',      'LOW',      '#22c55e', 0.30),
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, devicePixelRatio: 1.5,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { position: 'bottom', labels: { color: '#8c96a8', font: { size: 11 }, boxWidth: 12 } } },
+          scales: {
+            x: { stacked: true, ticks: { color: '#8c96a8', font: { size: 10 }, maxTicksLimit: 14 }, grid: { color: '#252b38' } },
+            y: { stacked: true, ticks: { color: '#8c96a8', font: { size: 10 } }, grid: { color: '#252b38' }, beginAtZero: true }
+          }
+        }
+      };
+      this._upsertChart('timeline', el, cfg);
+    },
+
+    renderSeverity() {
+      const el = this._chartCanvasReady('severityChart');
+      if (!el) return;
+      const cfg = {
+        type: 'doughnut',
+        data: {
+          labels: ['Critical', 'High', 'Medium', 'Low', 'Benign'],
+          datasets: [{
+            data: [
+              this.summary.critical_count || 0,
+              this.summary.high_count || 0,
+              this.summary.medium_count || 0,
+              this.summary.low_count || 0,
+              this.summary.benign_count || 0,
+            ],
+            backgroundColor: ['#ef4444', '#f97316', '#facc15', '#22c55e', '#7d8493'],
+            borderColor: '#1a1d26',
+            borderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, devicePixelRatio: 1.5,
+          cutout: '65%',
+          plugins: { legend: { position: 'bottom', labels: { color: '#8c96a8', font: { size: 11 }, boxWidth: 12 } } }
+        }
+      };
+      this._upsertChart('severity', el, cfg);
+    },
+
+    renderRules() {
+      const el = this._chartCanvasReady('rulesChart');
+      if (!el) return;
+      // Horizontal lollipop, sorted by fires descending. Optimised for
+      // examination: linear x-axis preserves real magnitude ratios so a
+      // 689-fire rule looks 100× longer than a 4-fire rule (the SOC
+      // signal). Dot colour = worst severity. Value label drawn at
+      // each dot tip via a custom plugin so the count is readable
+      // without hovering. Thin connector behind each dot from y-axis
+      // to the dot — communicates "magnitude bar" without using a
+      // chart-bar geometry.
+      const sorted = [...this.ruleStats].sort((a,b) => b.fires - a.fires).slice(0, 10);
+      const sevColor = {
+        CRITICAL: '#ef4444', HIGH: '#f97316', MEDIUM: '#facc15',
+        LOW:      '#22c55e', BENIGN: '#7d8493',
+      };
+      const labels   = sorted.map(r => 'R' + r.rule_id + ' · ' + r.rule_name);
+      const points   = sorted.map((r, i) => ({ x: r.fires, y: i }));
+      const dotColors = sorted.map(r => sevColor[r.worst_severity] || sevColor.BENIGN);
+
+      // Custom plugin: draws (a) a thin connector from y-axis to each
+      // dot, and (b) the numeric fire count to the right of each dot.
+      const lollipopPlugin = {
+        id: 'lollipopAdornments',
+        afterDatasetsDraw(chart) {
+          const { ctx, chartArea, scales: { x, y } } = chart;
+          if (!x || !y) return;
+          ctx.save();
+          ctx.font = 'bold 11px Inter, system-ui, sans-serif';
+          ctx.textBaseline = 'middle';
+          points.forEach((p, i) => {
+            const xpx = x.getPixelForValue(p.x);
+            const ypx = y.getPixelForValue(i);
+            // (a) connector
+            ctx.strokeStyle = dotColors[i] + '55';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(chartArea.left, ypx);
+            ctx.lineTo(xpx, ypx);
+            ctx.stroke();
+            // (b) value label
+            ctx.fillStyle = '#e6ebf3';
+            ctx.textAlign = 'left';
+            const labelText = p.x.toLocaleString();
+            const xLabel = Math.min(xpx + 9, chartArea.right - ctx.measureText(labelText).width - 4);
+            ctx.fillText(labelText, xLabel, ypx);
+          });
+          ctx.restore();
+        }
+      };
+
+      const cfg = {
+        type: 'scatter',
+        data: {
+          datasets: [{
+            data: points,
+            pointRadius: 7,
+            pointHoverRadius: 9,
+            pointBackgroundColor: dotColors,
+            pointBorderColor: dotColors,
+            pointBorderWidth: 2,
+            showLine: false,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, devicePixelRatio: 1.5,
+          layout: { padding: { right: 50 } },        // room for value labels
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: (items) => labels[items[0].dataIndex],
+                label: (ctx) => {
+                  const r = sorted[ctx.dataIndex];
+                  return r
+                    ? [r.fires + ' fires',
+                       'severity: ' + r.worst_severity,
+                       r.unique_src_ips + ' src IPs · ' + r.unique_dst_ips + ' dst IPs',
+                       'last fired: ' + (r.last_fired ? formatTime(r.last_fired) : '—')]
+                    : '';
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: 'linear',
+              beginAtZero: true,
+              ticks: { color: '#8c96a8', font: { size: 10 } },
+              grid:  { color: '#252b38' }
+            },
+            y: {
+              type: 'linear',
+              reverse: true,
+              min: -0.5, max: Math.max(sorted.length - 0.5, 0.5),
+              ticks: {
+                color: '#e6ebf3', font: { size: 11 },
+                stepSize: 1,
+                callback: (v) => labels[v] || ''
+              },
+              grid: { display: false }
+            }
+          }
+        },
+        plugins: [lollipopPlugin],
+      };
+      this._upsertChart('rules', el, cfg);
+    },
+
+    renderRulesBar() {
+      const el = this._chartCanvasReady('rulesBarChart');
+      if (!el) return;
+      const sorted = [...this.ruleStats].sort((a,b) => a.rule_id - b.rule_id);
+      const labels = sorted.map(r => 'R' + r.rule_id + ': ' + r.rule_name);
+      const data   = sorted.map(r => r.fires);
+      const cfg = {
+        type: 'scatter',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Fires',
+            data: data.map((v, i) => ({ x: v, y: i })),
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            pointBackgroundColor: ctx => ctx.parsed?.x > 0 ? '#00bfb3' : '#3a4150',
+            pointBorderColor: '#00bfb3',
+            showLine: false,
+          }, {
+            type: 'bar',
+            data: data,
+            backgroundColor: 'rgba(0,191,179,0.12)',
+            borderWidth: 0,
+            barThickness: 1.5,
+            categoryPercentage: 1.0,
+            barPercentage: 1.0,
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false, devicePixelRatio: 1.5,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { type: 'linear', beginAtZero: true,
+                 ticks: { color: '#8c96a8', font: { size: 10 } },
+                 grid: { color: '#252b38' } },
+            y: { type: 'category', labels,
+                 ticks: { color: '#8c96a8', font: { size: 10 } },
+                 grid: { display: false } }
+          }
+        }
+      };
+      this._upsertChart('rulesBar', el, cfg);
+    },
+
+    // ── Admin mutations ──
+    async quickWhitelist(ip) {
+      await this.post('/api/runtime/whitelist', { ip, reason: 'SOC quick whitelist', added_by: 'console' });
+      this.showToast('Whitelisted ' + ip);
+      this.fetchWhitelist();
+    },
+    async addWhitelist() {
+      if (!this.newWhitelist.ip) return;
+      await this.post('/api/runtime/whitelist', { ...this.newWhitelist, added_by: 'console' });
+      this.newWhitelist = { ip: '', reason: '' };
+      this.showToast('Whitelist entry added');
+      this.fetchWhitelist();
+    },
+    async removeWhitelist(ip) {
+      await fetch('/api/runtime/whitelist/' + encodeURIComponent(ip), { method: 'DELETE' });
+      this.showToast('Removed ' + ip);
+      this.fetchWhitelist();
+    },
+    async addScanner() {
+      if (!this.newScanner.ip) return;
+      await this.post('/api/runtime/scanners', { ...this.newScanner, added_by: 'console' });
+      this.newScanner = { ip: '', reason: '' };
+      this.showToast('Scanner added');
+      this.fetchScanners();
+    },
+    async removeScanner(ip) {
+      await fetch('/api/runtime/scanners/' + encodeURIComponent(ip), { method: 'DELETE' });
+      this.showToast('Removed ' + ip);
+      this.fetchScanners();
+    },
+
+    openSuppressModal(src_ip, attack_type) {
+      this.suppressModal = { open: true, src_ip, attack_type, ttl: 3600, reason: '' };
+    },
+    async confirmSuppress() {
+      const { src_ip, attack_type, ttl, reason } = this.suppressModal;
+      await this.post('/api/runtime/suppress', {
+        src_ip, attack_type, ttl_seconds: ttl, reason, added_by: 'console'
+      });
+      this.suppressModal.open = false;
+      this.showToast('Suppressed ' + attack_type + ' from ' + src_ip);
+    },
+
+    async setConfig(key, value) {
+      await this.post('/api/runtime/config/' + key, { value: String(value) });
+      this.showToast('Config ' + key + ' set to ' + value);
+      this.fetchConfig();
+    },
+    async pauseEngine() {
+      await this.post('/api/runtime/pause', {});
+      this.showToast('Engine paused');
+      this.fetchConfig();
+    },
+    async resumeEngine() {
+      await this.post('/api/runtime/resume', {});
+      this.showToast('Engine resumed');
+      this.fetchConfig();
+    },
+    async uebaPause() { await this.post('/api/runtime/ueba/pause', {}); this.showToast('UEBA paused'); this.fetchUeba(); },
+    async uebaResume() { await this.post('/api/runtime/ueba/resume', {}); this.showToast('UEBA resumed'); this.fetchUeba(); },
+    async uebaActivateNow() {
+      if (!confirm('Activate UEBA now? Baselines will be shallow.')) return;
+      await this.post('/api/runtime/ueba/activate-now', {}); this.showToast('UEBA activated'); this.fetchUeba();
+    },
+
+    // ── Utilities ──
+    async post(url, body) {
+      try {
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error(r.statusText);
+        return await r.json();
+      } catch(e) { this.showToast('Error: ' + e.message); }
+    },
+    showToast(msg) {
+      this.toast = msg;
+      setTimeout(() => { this.toast = ''; }, 2500);
+    },
+    humanBytes(n) {
+      if (!n || n < 0 || !isFinite(n)) return '—';
+      if (n < 1024)               return n.toFixed(0) + ' B';
+      if (n < 1024 * 1024)        return (n / 1024).toFixed(1) + ' KB';
+      if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+      return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+    },
+    humanRate(bps) {
+      if (!bps || bps < 0 || !isFinite(bps)) return '—';
+      if (bps < 1024)               return bps.toFixed(0) + ' B/s';
+      if (bps < 1024 * 1024)        return (bps / 1024).toFixed(1) + ' KB/s';
+      return (bps / (1024 * 1024)).toFixed(2) + ' MB/s';
+    },
+    humanPps(p) {
+      if (p === undefined || p === null || !isFinite(p)) return '—';
+      if (p < 1)    return p.toFixed(2) + ' /s';
+      if (p < 100)  return p.toFixed(1) + ' /s';
+      return p.toFixed(0) + ' /s';
+    },
+    humanDuration(s) {
+      if (s === undefined || s === null || s < 0 || !isFinite(s)) return '—';
+      if (s < 1)    return (s * 1000).toFixed(0) + ' ms';
+      if (s < 60)   return s.toFixed(1) + ' s';
+      if (s < 3600) return (s / 60).toFixed(1) + ' min';
+      return (s / 3600).toFixed(1) + ' h';
+    },
+    topMitreTactic() {
+      // Returns {name, count} for the highest-count MITRE tactic in the
+      // currently-loaded mitreTactics array. Falls back to '—' if empty.
+      const tactics = (this.mitreTactics || []).filter(t => (t.count || 0) > 0);
+      if (!tactics.length) return { name: '—', count: 0 };
+      const top = tactics.reduce((a, b) => (b.count > a.count ? b : a), tactics[0]);
+      return { name: top.tactic || '—', count: top.count || 0 };
+    },
+    formatTime(ts) {
+      if (ts === null || ts === undefined || ts === '') return '';
+      try {
+        // Accept: ISO-Z (UTC), naive ISO (local), epoch seconds (REAL),
+        // epoch ms (INTEGER>1e12). Always render in local time.
+        let d;
+        if (typeof ts === 'number') {
+          d = new Date(ts > 1e12 ? ts : ts * 1000);
+        } else {
+          d = new Date(ts);
+        }
+        if (isNaN(d.getTime())) return String(ts);
+        const today = new Date();
+        const sameDay = d.getFullYear() === today.getFullYear()
+                     && d.getMonth() === today.getMonth()
+                     && d.getDate() === today.getDate();
+        const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        if (sameDay) return time;
+        const md = (d.getMonth() + 1) + '/' + d.getDate();
+        return md + ' ' + time;
+      } catch(_) { return String(ts); }
+    },
+
+    // The alert's attack_type comes from Layer 2 (ML). When Layer 2 says
+    // benign but another layer (Policy / Rules / UEBA) fires, the ML
+    // "attack_type" is BENIGN or similar — which is meaningless for
+    // the *alert*. Show the tag / firing signal instead.
+    displayAttackType(a) {
+      const at = (a.attack_type || '').toString();
+      const isMlBenign = /^(BENIGN|Unclassified|)$/i.test(at);
+      if (isMlBenign) {
+        // Pull from reasons if available, fall back to tag
+        const reasons = a.reasons || [];
+        // reasons look like "Rule: RDP Brute Force" or "Anonymizer:
+        // PROXY" — take the first non-ML one
+        for (const r of reasons) {
+          if (typeof r === 'string' && !/^ML:/i.test(r) && r.length < 60) {
+            return r.replace(/^\w+:\s*/, '').split('(')[0].trim() || r;
+          }
+        }
+        if (a.tag) return a.tag.replace(/_/g, ' ');
+        return '—';
+      }
+      return at;
+    },
+    attackTypeTooltip(a) {
+      const at = (a.attack_type || '').toString();
+      if (/^(BENIGN|Unclassified|)$/i.test(at)) {
+        return 'Layer 2 ML: benign. Alert fired from another layer (Policy / Rule / UEBA). ' +
+               'Attack-type column shows the actual firing signal.';
+      }
+      return 'Layer 2 ML classified this flow as: ' + at +
+             '. Confidence: ' + ((a.ml_score || 0) * 100).toFixed(1) + '%.';
+    },
+    formatDuration(sec) {
+      sec = Number(sec) || 0;
+      const d = Math.floor(sec / 86400);
+      const h = Math.floor((sec % 86400) / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      if (d) return d + 'd ' + h + 'h';
+      if (h) return h + 'h ' + m + 'm';
+      return m + 'm';
+    },
+  }
+}
+</script>
+
+</body>
+</html>

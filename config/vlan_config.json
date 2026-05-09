@@ -1,0 +1,79 @@
+{
+  "vlan_map": {
+    "10": {
+      "department": "IT / Technical",
+      "priority": "critical",
+      "color": "#ef4444",
+      "subnet": "192.168.10.0/24",
+      "icon": "🖥️"
+    },
+    "20": {
+      "department": "Finance",
+      "priority": "high",
+      "color": "#f97316",
+      "subnet": "192.168.20.0/24",
+      "icon": "💰"
+    },
+    "30": {
+      "department": "Marketing",
+      "priority": "medium",
+      "color": "#eab308",
+      "subnet": "192.168.30.0/24",
+      "icon": "📢"
+    },
+    "40": {
+      "department": "Sales",
+      "priority": "medium",
+      "color": "#eab308",
+      "subnet": "192.168.40.0/24",
+      "icon": "📊"
+    },
+    "50": {
+      "department": "IoT Devices",
+      "priority": "high",
+      "color": "#f97316",
+      "subnet": "192.168.50.0/24",
+      "icon": "📡"
+    },
+    "60": {
+      "department": "Guest WiFi",
+      "priority": "low",
+      "color": "#22c55e",
+      "subnet": "192.168.60.0/24",
+      "icon": "📶"
+    },
+    "1": {
+      "department": "Office Network",
+      "priority": "medium",
+      "color": "#eab308",
+      "subnet": "192.168.1.0/24",
+      "icon": "🏢"
+    },
+    "99": {
+      "department": "Unmapped",
+      "priority": "high",
+      "color": "#f97316",
+      "subnet": "0.0.0.0/0",
+      "icon": ""
+    },
+    "19": {
+      "department": "Office",
+      "priority": "medium",
+      "color": "#3b82f6",
+      "subnet": "192.168.19.0/24",
+      "icon": "🏢"
+    }
+  },
+  "priority_rank": {
+    "critical": 0,
+    "high": 1,
+    "medium": 2,
+    "low": 3
+  },
+  "priority_escalation": {
+    "enabled": true,
+    "threshold_alerts": 10,
+    "window_minutes": 5,
+    "escalation_duration_minutes": 30
+  }
+}

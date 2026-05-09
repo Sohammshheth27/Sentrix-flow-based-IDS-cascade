@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Virtualenvs
+venv/
+env/
+.venv/
+
+# Pickled models (this repo ships ONNX only)
+*.pkl
+*.joblib
+
+# Backups
+*.bak*
+
+# Runtime state
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Behavioural state
+ueba_*state*.json
+
+# Live logs
+logs/*
+!logs/.gitkeep
+data/*
+!data/.gitkeep
+
+# Build/IDE
+.vscode/
+.idea/
+.DS_Store
+build/
+dist/
+
+# Paper artifacts
+*.docx
+*.tar.gz
+*.zip

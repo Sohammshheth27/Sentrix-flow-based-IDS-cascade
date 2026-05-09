@@ -1,0 +1,173 @@
+{
+  "name": "Sentrix v2 \u2014 Stage 1 binary ensemble + extra source",
+  "version": "4.4-v2-phase4_v2",
+  "trained_utc": "2026-04-25T09:00:12Z",
+  "seed": 42,
+  "n_features": 53,
+  "feature_schema": [
+    "src_port",
+    "dst_port",
+    "protocol",
+    "duration",
+    "fwd_packets",
+    "bwd_packets",
+    "total_packets",
+    "fwd_bytes",
+    "bwd_bytes",
+    "total_bytes",
+    "pkt_size_min",
+    "pkt_size_max",
+    "syn_flag",
+    "fin_flag",
+    "rst_flag",
+    "ack_flag",
+    "psh_flag",
+    "bytes_per_sec",
+    "packets_per_sec",
+    "fwd_packets_per_sec",
+    "bwd_packets_per_sec",
+    "pkt_size_mean",
+    "fwd_byte_ratio",
+    "bytes_per_packet",
+    "fwd_bwd_pkt_ratio",
+    "fwd_bwd_byte_ratio",
+    "duration_per_packet",
+    "is_well_known_port",
+    "is_http",
+    "is_https",
+    "is_dns",
+    "is_ssh",
+    "is_threat_port",
+    "syn_ratio",
+    "rst_ratio",
+    "fin_ratio",
+    "syn_without_ack",
+    "rst_without_established",
+    "flag_entropy",
+    "traffic_asymmetry",
+    "protocol_port_mismatch",
+    "short_session_flag",
+    "long_session_flag",
+    "small_packet_flag",
+    "large_packet_flag",
+    "host_flow_count_60s",
+    "host_distinct_dst_60s",
+    "host_distinct_port_60s",
+    "host_syn_no_ack_count_60s",
+    "host_flow_rate_60s",
+    "host_bytes_out_60s",
+    "host_inter_flow_mean_60s",
+    "host_inter_flow_std_60s"
+  ],
+  "training_sources": [],
+  "extra_parquet_used": "/home/sohamm/sentrix/data/extra_canonical.parquet",
+  "split_sizes": {
+    "train": 1694336,
+    "val": 363073,
+    "test": 363073,
+    "heldout": 458295
+  },
+  "ensemble_weights": {
+    "lgb": 0.45,
+    "xgb": 0.5,
+    "rf": 0.050000000000000044
+  },
+  "temperature": 1.1078255240951425,
+  "thresholds": {
+    "TAU_LOW": 0.04,
+    "TAU_HIGH": 0.98
+  },
+  "metrics": {
+    "validation": {
+      "P": 0.9969513582381581,
+      "R": 0.9965583637824643,
+      "F1": 0.9967548222734441,
+      "acc": 0.9976423474067199,
+      "FPR": 0.0017390627230607504,
+      "AUC": 0.9999637764052063,
+      "ECE": 0.0017723523099316043
+    },
+    "in_distribution_test": {
+      "P": 0.9967015718716116,
+      "R": 0.9964522340312628,
+      "F1": 0.9965768873557118,
+      "acc": 0.9975128968554533,
+      "FPR": 0.001881821603312006,
+      "AUC": 0.9999619243309804,
+      "ECE": 0.0016575121186156597
+    },
+    "cross_distribution_heldout": {
+      "P": 0.9895683320409143,
+      "R": 0.9402157705464433,
+      "F1": 0.9642609767287055,
+      "acc": 0.9913309113125826,
+      "FPR": 0.0014079593311570186,
+      "AUC": 0.9994830288449913,
+      "ECE": 0.006743777200390794
+    },
+    "per_source_heldout": {
+      "CTU-13-heldout": {
+        "P": 1.0,
+        "R": 0.9949,
+        "F1": 0.9974,
+        "acc": 0.9965,
+        "FPR": 0.0,
+        "AUC": 1.0,
+        "ECE": 0.0325,
+        "n": 14270
+      },
+      "CTU-IoT-heldout": {
+        "acc": 0.5681,
+        "FPR": 0.0,
+        "single_class": 1,
+        "F1": "N/A-single-class",
+        "n": 6495
+      },
+      "CTU-SME-11-heldout": {
+        "P": 0.9817,
+        "R": 0.991,
+        "F1": 0.9863,
+        "acc": 0.9905,
+        "FPR": 0.0098,
+        "AUC": 0.9997,
+        "ECE": 0.0062,
+        "n": 87408
+      },
+      "MAWI-heldout": {
+        "acc": 1.0,
+        "FPR": 0.0,
+        "single_class": 0,
+        "F1": "N/A-single-class",
+        "n": 200000
+      },
+      "Stratosphere-MCFP-heldout": {
+        "acc": 0.9917,
+        "FPR": 0.0,
+        "single_class": 1,
+        "F1": "N/A-single-class",
+        "n": 10122
+      },
+      "UGR-16-heldout": {
+        "P": 0.2,
+        "R": 0.0051,
+        "F1": 0.0099,
+        "acc": 0.998,
+        "FPR": 0.0,
+        "AUC": 0.939,
+        "ECE": 0.0008,
+        "n": 100000
+      },
+      "UWF-ZeekData24-heldout": {
+        "acc": 1.0,
+        "FPR": 0.0,
+        "single_class": 0,
+        "F1": "N/A-single-class",
+        "n": 40000
+      }
+    }
+  },
+  "throughput_fps": 19281,
+  "model_size_mb": 39.77,
+  "ece_before_calibration": 0.007,
+  "ece_after_calibration": 0.0067
+}

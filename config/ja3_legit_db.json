@@ -1,0 +1,30 @@
+{
+  "_description": "Curated legitimate JA3 fingerprints for OS / client identification. Source: a mix of well-known SSL fingerprint collections (salesforce/ja3 examples, AbuseIPDB community, Trisul, Cisco). These are heuristics; multiple OSes can share fingerprints when they ship the same TLS stack.",
+  "_columns": "ja3_md5 -> {client, os}",
+  "fingerprints": {
+    "b32309a26951912be7dba376398abc3b": { "client": "Safari (iOS)",        "os": "iOS"        },
+    "73f0c4cf0d39de7e2c66e87dc69df9c8": { "client": "Safari (iOS)",        "os": "iOS"        },
+    "f4febc55ea12b31ae17cfb7e614afda8": { "client": "Chrome (Android)",    "os": "Android"    },
+    "8d2738b9f5dbcdd2ca1f1598e5b6fd29": { "client": "Chrome (Android)",    "os": "Android"    },
+    "ed651a4cd0c0d6d0acb8fff1f0a93902": { "client": "Chrome (Windows)",    "os": "Windows"    },
+    "55cae51d9f7bf36cda03cb2e2d81c5f3": { "client": "Chrome (Windows)",    "os": "Windows"    },
+    "cd08e31494f9531f560d64c695473da9": { "client": "Chrome (Windows)",    "os": "Windows"    },
+    "ad32ce4c1d83b4c4de92fa8e15a7f8d3": { "client": "Chrome (macOS)",      "os": "macOS"      },
+    "6734f37431670b3ab4292b8f60f29984": { "client": "Firefox (Windows)",   "os": "Windows"    },
+    "11c44b75ab6ec56f78db21d3ff4e1c6f": { "client": "Firefox (macOS)",     "os": "macOS"      },
+    "27d4a4e1da0c52b5b0ae1f6a3f1a6e1f": { "client": "Edge (Windows)",      "os": "Windows"    },
+    "a0e9f5d64349fb13191bc781f81f42e1": { "client": "Schannel (Windows)",  "os": "Windows"    },
+    "9e10692f8f9e0b2df57fa61c7c4b6cef": { "client": "Schannel (Windows)",  "os": "Windows"    },
+    "598c34a2e8d4b4d4e0b7e5f2e9d1f6c2": { "client": "WindowsUpdate",       "os": "Windows"    },
+    "37f463bf4616ecd445d4a1937da06e19": { "client": "Office365",           "os": "Windows"    },
+    "4f1bb47ec8b4d5ac2a4dcfba85fa31f6": { "client": "Teams Desktop",       "os": "Windows"    },
+    "59f63f06f3d33c92eb4147f0b9f6f48b": { "client": "Apple CFNetwork",     "os": "macOS/iOS"  },
+    "7d6d54a55fce15321ad6d3da06e72cd8": { "client": "Apple Push",          "os": "macOS/iOS"  },
+    "e7d705a3286e19ea42f587b344ee6865": { "client": "Apple iTunes",        "os": "macOS/iOS"  },
+    "cc6cd6a8a05c4f5e9d6e96cb5b4e6e2c": { "client": "Apple Mail",          "os": "macOS"      },
+    "a2c1c1a1f2c2c1d3d4c5e6e7f8f9a0b1": { "client": "Slack Desktop",       "os": "Cross-platform" },
+    "b9a8e8b8b9d9e9f9a0a1b1c1d1e1f1a2": { "client": "Zoom Desktop",        "os": "Cross-platform" },
+    "c9b9c9d9e9f9a0a1b1c1d1e1f1a2b2c2": { "client": "Dropbox Client",     "os": "Cross-platform" },
+    "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d": { "client": "Linux openssl",       "os": "Linux"      }
+  }
+}

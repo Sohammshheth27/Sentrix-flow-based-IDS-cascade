@@ -1,0 +1,4 @@
+{
+  "description": "Contextual whitelist. Flows matching these are ALWAYS benign and skip ML. Operator-curated per deployment.",
+  "ip_port_pairs": []
+}

@@ -1,0 +1,103 @@
+{
+  "description": "Threat intelligence feed configuration. URLs are fetched periodically to build IP/domain/JA3 reputation databases.",
+
+  "feeds": {
+    "feodo_botnet_c2": {
+      "url": "https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.txt",
+      "type": "ip_list",
+      "format": "line_per_ip",
+      "comment_prefix": "#",
+      "category": "botnet_c2",
+      "severity": "CRITICAL",
+      "update_hours": 1,
+      "enabled": true,
+      "description": "Feodo Tracker — active botnet C2 servers (Dridex, Emotet, TrickBot, QakBot)"
+    },
+    "sslbl_malicious_ja3": {
+      "url": "https://sslbl.abuse.ch/blacklist/ja3_fingerprints.csv",
+      "type": "ja3_list",
+      "format": "csv",
+      "category": "malware_tls",
+      "severity": "HIGH",
+      "update_hours": 6,
+      "enabled": true,
+      "description": "SSLBL — JA3 fingerprints associated with malware C2 communication"
+    },
+    "sslbl_malicious_ip": {
+      "url": "https://sslbl.abuse.ch/blacklist/sslipblacklist.txt",
+      "type": "ip_list",
+      "format": "line_per_ip",
+      "comment_prefix": "#",
+      "category": "malware_ssl",
+      "severity": "HIGH",
+      "update_hours": 1,
+      "enabled": false,
+      "description": "SSLBL SSL IP blacklist — DEPRECATED by abuse.ch on 2025-01-03, feed no longer updated"
+    },
+    "urlhaus_online": {
+      "url": "https://urlhaus.abuse.ch/downloads/text_online/",
+      "type": "url_list",
+      "format": "line_per_url",
+      "comment_prefix": "#",
+      "category": "malware_distribution",
+      "severity": "HIGH",
+      "update_hours": 1,
+      "enabled": true,
+      "description": "URLhaus — active malware distribution URLs"
+    },
+    "emergingthreats_compromised": {
+      "url": "https://rules.emergingthreats.net/blockrules/compromised-ips.txt",
+      "type": "ip_list",
+      "format": "line_per_ip",
+      "comment_prefix": "#",
+      "category": "compromised",
+      "severity": "MEDIUM",
+      "update_hours": 12,
+      "enabled": true,
+      "description": "Emerging Threats — known compromised IPs"
+    },
+    "tor_exit_nodes": {
+      "url": "https://check.torproject.org/torbulkexitlist",
+      "type": "ip_list",
+      "format": "line_per_ip",
+      "comment_prefix": "#",
+      "category": "anonymizer",
+      "severity": "MEDIUM",
+      "update_hours": 6,
+      "enabled": true,
+      "description": "Tor Project — current exit node IPs"
+    },
+    "cinsscore_badguys": {
+      "url": "https://cinsscore.com/list/ci-badguys.txt",
+      "type": "ip_list",
+      "format": "line_per_ip",
+      "comment_prefix": "#",
+      "category": "scanner",
+      "severity": "MEDIUM",
+      "update_hours": 12,
+      "enabled": true,
+      "description": "CI Army — IPs actively scanning/attacking worldwide"
+    }
+  },
+
+  "local_overrides": {
+    "whitelisted_ips": [
+      "8.8.8.8", "8.8.4.4",
+      "1.1.1.1", "1.0.0.1",
+      "208.67.222.222", "208.67.220.220"
+    ],
+    "whitelisted_domains": [
+      "google.com", "microsoft.com", "github.com",
+      "amazonaws.com", "cloudflare.com"
+    ],
+    "notes": "IPs/domains that should NEVER be flagged even if they appear in threat feeds (public DNS, major cloud providers)"
+  },
+
+  "settings": {
+    "max_age_hours": 48,
+    "cache_dir": "data/threat_cache",
+    "db_path": "threat_intel.db",
+    "fetch_timeout_sec": 30,
+    "retry_count": 3
+  }
+}
